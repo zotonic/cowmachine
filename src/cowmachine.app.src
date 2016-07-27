@@ -1,0 +1,14 @@
+{application, cowmachine,
+ [
+  {description, "Webmachine for Cowboy and Zotonic"},
+  {vsn, "1.0"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  sendfile
+                 ]},
+  {env, [
+        {use_sendfile, erlang}
+  ]}
+ ]}.
