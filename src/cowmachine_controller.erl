@@ -89,7 +89,7 @@ default(content_encodings_provided) ->
 % Example:
 %    [{"gzip", fun(X) -> zlib:gzip(X) end}];
 default(transfer_encodings_provided) ->
-    [{<<"gzip">>, fun(X) -> zlib:gzip(X) end}];
+    [];
 
 default(variances) ->
     [];
@@ -117,75 +117,14 @@ default(_) ->
 
 %% @TODO Re-add logging code
 
-do(Fun, #cmstate{controller=Controller} = State, Context) when is_atom(Fun) ->
+do(Fun, #cmstate{controller=Controller}, Context) when is_atom(Fun) ->
     case erlang:function_exported(Controller, Fun, 1) of
         true ->
             Controller:Fun(Context);
         false ->
-            % Backwards compatibility
-            case erlang:function_exported(Controller, Fun, 2) of
-                true ->
-                    do_webmachine(Fun, Controller, State#cmstate.controller_options, Context);
-                false ->
-                    case default(Fun) of
-                        no_default -> Controller:Fun(Context);
-                        Default -> {Default, Context}
-                    end
+            case default(Fun) of
+                no_default -> Controller:Fun(Context);
+                Default -> {Default, Context}
             end
     end.
 
-%% @doc Functions handling the old webmachine callbacks, fixes the types of the return values.
-do_webmachine(service_available, Controller, ControllerOpts, Context) ->
-    {ok, Args} = Controller:init(ControllerOpts),
-    {Val, Req1, Ctx1} = Controller:service_available(cowmachine_req:req(Context), Args),
-    {Val, cowmachine_req:set_req(Req1, Ctx1)};
-do_webmachine(Fun, Controller, _ControllerOpts, Context) ->
-    {Val, Req1, Ctx1} = Controller:Fun(cowmachine_req:req(Context), Context),
-    {wm2cow(Fun, Val), cowmachine_req:set_req(Req1, Ctx1)}.
-
-wm2cow(upgrades_provided, L) when is_list(L) ->
-    [ {z_convert:to_binary(Upgrade), Fun} || {Upgrade,Fun} <- L ];
-wm2cow(is_authorized, Auth) when is_list(Auth) ->
-    z_convert:to_binary(Auth);
-wm2cow(options, L) when is_list(L) ->
-    [ {z_convert:to_binary(A), z_convert:to_binary(B)} || {A,B} <- L ];
-wm2cow(allowed_methods, L) when is_list(L) ->
-    [ z_convert:to_binary(M) || M <- L ];
-wm2cow(known_methods, L) when is_list(L) ->
-    [ z_convert:to_binary(M) || M <- L ];
-wm2cow(content_types_provided, L) when is_list(L) ->
-    [ {wm2cow_ct(Enc), Fun} || {Enc,Fun} <- L ];
-wm2cow(content_types_accepted, L) when is_list(L) ->
-    [ {wm2cow_ct(Enc), Fun} || {Enc,Fun} <- L ];
-wm2cow(charsets_provided, L) when is_list(L) ->
-    [ z_convert:to_binary(CharSet) || CharSet <- L ];
-wm2cow(content_encodings_provided, L) when is_list(L) ->
-    [ z_convert:to_binary(Enc) || Enc <- L ];
-wm2cow(transfer_encodings_provided, L) when is_list(L) ->
-    [ {z_convert:to_binary(Enc), Fun} || {Enc,Fun} <- L ];
-wm2cow(encodings_provided, L) when is_list(L) ->
-    [ {z_convert:to_binary(Enc), Fun} || {Enc,Fun} <- L ];
-wm2cow(variances, L) when is_list(L) ->
-    [ z_convert:to_binary(V) || V <- L ];
-wm2cow(moved_permanently, {true, Uri}) when is_list(Uri) ->
-    {true, z_convert:to_binary(Uri)};
-wm2cow(moved_temporarily, {true, Uri}) when is_list(Uri) ->
-    {true, z_convert:to_binary(Uri)};
-wm2cow(generate_etag, Etag) when is_list(Etag) ->
-    z_convert:to_binary(Etag);
-wm2cow(create_path, Path) when is_list(Path) ->
-    z_convert:to_binary(Path);
-wm2cow(base_uri, Uri) when is_list(Uri) ->
-    z_convert:to_binary(Uri);
-wm2cow(_Fun, Value) ->
-    Value.
-
-wm2cow_ct({CT, Params}) ->
-    {z_convert:to_binary(CT), bin_params(Params)};
-wm2cow_ct({CT1, CT2, Params}) ->
-    {z_convert:to_binary(CT1), z_convert:to_binary(CT2), bin_params(Params)};
-wm2cow_ct(CT) ->
-    z_convert:to_binary(CT).
-
-bin_params(Params) ->
-    [{z_convert:to_binary(P), z_convert:to_binary(V)} || {P,V} <- Params].

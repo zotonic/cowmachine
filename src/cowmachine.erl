@@ -35,19 +35,20 @@
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 execute(Req, #{controller=Controller, controller_options=ControllerOpts} = Env) ->
     Context = maps:get(context, Env, Req),
-    request(Controller, ControllerOpts, Req, Env, Context1).
+    request(Controller, ControllerOpts, Req, Env, #{}, Context1).
 
 
 %% @doc Handle a request, executes the cowmachine http states. Can be used by middleware
 %% functions to add some additional initialization of controllers or context.
--spec request(atom(), list(), Req, Env, term()) -> {ok, Req, Env} | {stop, Req}
+-spec request(atom(), list(), Req, Env, map(), term()) -> {ok, Req, Env} | {stop, Req}
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-request(Controller, ControllerOpts, Req, Env, Context) ->
+request(Controller, ControllerOpts, Req, Env, Options, Context) ->
     State = #cmstate{
         env=Env,
         controller=Controller,
         controller_options=ControllerOpts,
-        cache = #{}
+        cache = #{},
+        options = Options
     },
     Site = maps:get(site, Env, undefined),
     try

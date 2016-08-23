@@ -176,8 +176,12 @@ decision(v3b10, State, Context) ->
 decision(v3b9, State, Context) ->
     decision_test(controller_call(malformed_request, State, Context), true, 400, v3b8);
 %% "Authorized?"
-decision(v3b8, State, Context) ->
-    {IsAuthorized, S1, C1} = controller_call(is_authorized, State, Context),
+decision(v3b8, #cmstate{options=Options} = State, Context) ->
+    Context1 = case maps:get(on_welformed, Options, undefined) of
+                    undefined -> Context;
+                    Fun when is_function(Fun) -> Fun(Context)
+               end,
+    {IsAuthorized, S1, C1} = controller_call(is_authorized, State, Context1),
     case IsAuthorized of
         true -> 
             d(v3b7, S1, C1);
@@ -653,7 +657,6 @@ choose_content_encoding(AccEncHdr, State, Context) ->
             RdEnc1 = cowmachine_req:set_resp_content_encoding(ChosenEnc,RdEnc),
             {ChosenEnc, Rs1, RdEnc1}
     end.
-
 
 choose_transfer_encoding(AccEncHdr, State, Context) ->
     choose_transfer_encoding(cowmachine_req:version(Context), AccEncHdr, State, Context).

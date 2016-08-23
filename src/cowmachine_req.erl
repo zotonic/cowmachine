@@ -47,6 +47,7 @@
     disp_path/1,
 
     get_req_header/2,
+    get_req_headers/1,
     set_resp_content_type/2,
     resp_content_type/1,
 
@@ -76,6 +77,7 @@
 
     set_resp_content_encoding/2,
     resp_content_encoding/1,
+    encode_content/2,
 
     set_resp_body/2,
     resp_body/1,
@@ -254,7 +256,7 @@ raw_path(Context) ->
 qs(Context) ->
     cowboy_req:qs(req(Context)).
 
-%% @doc Return the undecoded query string, <<>> when no query string.
+%% @doc Return the decoded query string, [] when no query string.
 -spec req_qs(context()) -> list({binary(), binary()}).
 req_qs(Context) ->
     Qs = qs(Context),
@@ -269,6 +271,11 @@ path_info(Context) ->
 -spec get_req_header(binary(), context()) -> binary() | undefined.
 get_req_header(H, Context) ->
     cowboy_req:header(H, req(Context)).
+
+%% @doc Fetch all request headers.
+-spec get_req_headers(context()) -> binary() | undefined.
+get_req_headers(Context) ->
+    cowboy_req:headers(req(Context)).
 
 %% @doc Set the content type of the response
 -spec set_resp_content_type(binary(), context()) -> context().
@@ -319,7 +326,7 @@ get_resp_header(Header, Context) ->
     maps:get(Header, Hs, undefined).
 
 %% @doc Fetch all response headers.
--spec get_resp_header(context()) -> map().
+-spec get_resp_headers(context()) -> map().
 get_resp_headers(Context) ->
     maps:get(resp_headers, req(Context), #{}).
 
@@ -396,6 +403,15 @@ set_resp_content_encoding(Enc, Context) when is_binary(Enc) ->
 -spec resp_content_encoding(context()) -> binary().
 resp_content_encoding(Context) ->
     maps:get(cowmachine_resp_content_encoding, req(Context)).
+
+%% @doc Encode the content according to the selected content encoding
+-spec encode_content(iolist(), context()) -> iolist().
+encode_content(Content, Context) ->
+    encode_content_1(resp_content_encoding(Context), Content).
+
+encode_content_1(<<"gzip">>, Content) -> zlib:gzip(Content);
+encode_content_1(<<"identity">>, Content) -> Content.
+
 
 %% @doc Set the 'redirect' flag, used during POST processing to check if a 303 should be returned.
 -spec do_redirect(boolean(), context()) -> context().

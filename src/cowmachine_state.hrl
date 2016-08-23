@@ -8,7 +8,8 @@
     controller_options :: list(),
 
     % Memo cache for resource calls
-    cache = #{} :: map()
+    cache = #{} :: map(),
+    options = #{} :: map()
 
     % socket=undefined,
     % metadata=dict:new() :: wm_dict(),
