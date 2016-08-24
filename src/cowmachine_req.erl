@@ -122,7 +122,7 @@
 %% @doc Set some intial metadata in the cowboy req
 -spec init_req(cowboy_req:req(), cowboy_middleware:env()) -> cowboy_req:req().
 init_req(Req, Env) ->
-    Req#{
+    Req1 = Req#{
         cowmachine_site => maps:get(site, Env, undefined),
 
         cowmachine_resp_code => 500,
@@ -139,7 +139,8 @@ init_req(Req, Env) ->
 
         cowmachine_peer => peer_req(Req),
         cowmachine_cookies => cowboy_req:parse_cookies(Req)
-    }.
+    },
+    cowboy_req:set_resp_header(<<"server">>, maps:get(Env, server_header, <<"Cowmachine">>), Req1).
 
 
 %% @doc Optionally wrap the cowboy request in the context.
@@ -171,7 +172,8 @@ method(Context) ->
 version(Context) ->
     case cowboy_req:version(req(Context)) of
         'HTTP/1.0' -> {1,0};
-        'HTTP/1.1' -> {1,1}
+        'HTTP/1.1' -> {1,1};
+        'HTTP/2'   -> {2,0}
     end.
 
 %% @doc Return the base uri of the request.
