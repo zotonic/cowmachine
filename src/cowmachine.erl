@@ -33,9 +33,9 @@
 %%      requests a redirect or return a 400 on an unknown host.
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-execute(Req, #{controller=Controller, controller_options=ControllerOpts} = Env) ->
+execute(Req, #{controller:=Controller, controller_options:=ControllerOpts} = Env) ->
     Context = maps:get(context, Env, Req),
-    request(Controller, ControllerOpts, Req, Env, #{}, Context1).
+    request(Controller, ControllerOpts, Req, Env, #{}, Context).
 
 
 %% @doc Handle a request, executes the cowmachine http states. Can be used by middleware
