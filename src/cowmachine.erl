@@ -24,7 +24,7 @@
 
 -export([
     execute/2,
-    request/5
+    request/6
 ]).
 
 -include("cowmachine_state.hrl").
@@ -43,6 +43,14 @@ execute(Req, #{controller=Controller, controller_options=ControllerOpts} = Env) 
 -spec request(atom(), list(), Req, Env, map(), term()) -> {ok, Req, Env} | {stop, Req}
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 request(Controller, ControllerOpts, Req, Env, Options, Context) ->
+    case request_1(Controller, ControllerOpts, Req, Env, Options, Context) of
+        {upgrade, UpgradeFun, _StateResult, ContextResult} ->
+            Controller:UpgradeFun(ContextResult);
+        Other ->
+            Other
+    end.
+
+request_1(Controller, ControllerOpts, Req, Env, Options, Context) ->
     State = #cmstate{
         env=Env,
         controller=Controller,
@@ -57,7 +65,7 @@ request(Controller, ControllerOpts, Req, Env, Options, Context) ->
             {_Finish, _StateResult, ContextResult} ->
                 cowmachine_response:send_response(ContextResult, Env);
             {upgrade, UpgradeFun, _StateResult, ContextResult} ->
-                Controller:UpgradeFun(ContextResult)
+                {upgrade, UpgradeFun, _StateResult, ContextResult}
         end
     catch
         throw:{stop_request, 500, Reason} ->

@@ -151,6 +151,7 @@ set_req(Req, OldReq) when is_map(OldReq); OldReq =:= undefined ->
     Req.
 
 %% @doc Fetch the cowboy request from the context.
+-spec req(context()) -> cowboy_req:req().
 req(Context) when is_tuple(Context) ->
     erlang:element(2, Context);
 req(Req) when is_map(Req) ->
