@@ -69,7 +69,7 @@ media_match({<<"*">>, <<"*">>, []}, [H|_]) ->
     H;
 media_match({TypeA, TypeB, Params}, Provided) ->
     case lists:dropwhile(
-                fun(PT1,PT2,PP) ->
+                fun({PT1,PT2,PP}) ->
                     not (media_type_match(TypeA, TypeB, PT1, PT2)
                          andalso media_params_match(Params, PP))
                 end,

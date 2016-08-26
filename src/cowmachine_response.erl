@@ -29,6 +29,11 @@
      server_header/0
      ]).
 
+% Debugging
+-export([
+    send_stream_body/2
+]).
+
 -define(IDLE_TIMEOUT, infinity).
 -define(FILE_CHUNK_LENGTH, 65536).
 
@@ -37,7 +42,7 @@ server_header() ->
         {ok, Server} -> z_convert:to_binary(Server);
         undefined ->
             {ok, Version} = application:get_key(cowmachine, vsn),
-            <<"CowMachine/", (z_convert:to_binary(Version))>>
+            <<"CowMachine/", (z_convert:to_binary(Version))/binary>>
     end.
 
 
@@ -97,14 +102,15 @@ send_response_code(Code, Parts, Req) ->
     send_response_bodyfun(cowmachine_req:resp_body(Req), Code, Parts, Req).
 
 
+send_response_bodyfun(undefined, Code, Parts, Req) ->
+    send_response_bodyfun(<<>>, Code, Parts, Req);
 send_response_bodyfun({device, IO}, Code, Parts, Req) ->
     Length = iodevice_size(IO),
     send_response_bodyfun({device, Length, IO}, Code, Parts, Req);
 send_response_bodyfun({device, Length, IO}, Code, all, Req) ->
     Writer = fun() -> 
-                Bytes = send_device_body(Req, Length, IO),
-                _ = file:close(IO),
-                Bytes
+                send_device_body(Req, Length, IO),
+                _ = file:close(IO)
              end,
     start_response_stream(Code, Length, Writer, Req);
 send_response_bodyfun({device, _Length, IO}, Code, Parts, Req) ->
@@ -118,19 +124,19 @@ send_response_bodyfun({file, Filename}, Code, Parts, Req) ->
     Length = filelib:file_size(Filename),
     start_response_stream({file, Length, Filename}, Code, Parts, Req);
 send_response_bodyfun({file, Length, Filename}, Code, all, Req) ->
-    Writer = fun() -> send_file_body(Req, Length, Filename) end,
+    Writer = fun(FunReq) -> send_file_body(FunReq, Length, Filename, fin) end,
     start_response_stream(Code, Length, Writer, Req);
 send_response_bodyfun({file, _Length, Filename}, Code, Parts, Req) ->
-    Writer = fun() -> send_file_body_parts(Req, Parts, Filename) end,
+    Writer = fun(FunReq) -> send_file_body_parts(FunReq, Parts, Filename) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({stream, StreamFun}, Code, all, Req) ->
-    Writer = fun() -> send_stream_body(Req, StreamFun) end,
+    Writer = fun(FunReq) -> send_stream_body(FunReq, StreamFun) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({stream, Size, Fun}, Code, all, Req) ->
-    Writer = fun() -> send_stream_body(Req, Fun(0, Size-1)) end,
+    Writer = fun(FunReq) -> send_stream_body(FunReq, Fun(0, Size-1)) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({writer, WriterFun}, Code, all, Req) ->
-    Writer = fun() -> send_writer_body(Req, WriterFun) end,
+    Writer = fun(FunReq) -> send_writer_body(FunReq, WriterFun) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun(Body, Code, all, Req) ->
     Length = iolist_size(Body),
@@ -143,16 +149,17 @@ send_response_bodyfun(Body, Code, Parts, Req) ->
 start_response_stream(Code, Length, FunOrBody, Req) ->
     Headers = response_headers(Code, Length, Req),
     case cowmachine_req:method(Req) of
-        <<"HEAD">> ->
-            % @todo Hack Alert!
-            % At the moment cowboy 2.0 doesn't allow any HEAD processing
-            % The normal cowboy reply would set the content-length to 0.
-            StreamID = maps:get(streamid, Req),
-            Pid = maps:get(pid, Req),
-            Pid ! {{Pid, StreamID}, {response, Code, Headers, <<>>}},
-            {ok, 0};
+        % <<"HEAD">> ->
+        %     % @todo Hack Alert!
+        %     % At the moment cowboy 2.0 doesn't allow any HEAD processing
+        %     % The normal cowboy reply would set the content-length to 0.
+        %     StreamID = maps:get(streamid, Req),
+        %     Pid = maps:get(pid, Req),
+        %     Pid ! {{Pid, StreamID}, {response, Code, Headers, <<>>}},
+        %     {ok, 0};
         _Method when is_function(FunOrBody) ->
-            cowboy_req:reply(Code, Headers, {stream, undefined, FunOrBody}, Req);
+            Req1 = cowboy_req:stream_reply(Code, Headers, Req),
+            FunOrBody(Req1);
         _Method when FunOrBody =:= undefined ->
             cowboy_req:reply(Code, Headers, <<>>, Req);
         _Method when is_list(FunOrBody); is_binary(FunOrBody) ->
@@ -177,49 +184,49 @@ response_headers(Code, Length, Req) ->
 
 send_stream_body(Req, {<<>>, done}) ->
     % @TODO: in cowboy this give a wrong termination with two 0 size chunks
-    send_final_chunk(Req, <<>>);
+    send_chunk(Req, <<>>, fin);
 send_stream_body(Req, {Data, done}) ->
-    send_final_chunk(Req, Data);
+    send_chunk(Req, Data, fin);
 send_stream_body(Req, {{file, Filename}, Next}) ->
     Length = filelib:file_size(Filename),
     send_stream_body(Req, {{file, Length, Filename}, Next});
 send_stream_body(Req, {{file, 0, _Filename}, Next}) ->
     send_stream_body(Req, {<<>>, Next});
 send_stream_body(Req, {{file, Size, Filename}, Next}) ->
-    send_file_body(Req, Size, Filename),
+    send_file_body(Req, Size, Filename, nofin),
     send_stream_body(Req, {<<>>, Next});
 send_stream_body(Req, {<<>>, Next}) ->
     send_stream_body(Req, Next());
 send_stream_body(Req, {[], Next}) ->
     send_stream_body(Req, Next());
 send_stream_body(Req, {Data, Next}) ->
-    send_chunk(Req, Data),
+    send_chunk(Req, Data, nofin),
     send_stream_body(Req, Next()).
 
 send_device_body(Req, Length, IO) ->
-    send_file_body_loop(Req, 0, Length, IO).
+    send_file_body_loop(Req, 0, Length, IO, fin).
 
-send_file_body(Req, Length, Filename) ->
+send_file_body(Req, Length, Filename, FinNoFin) ->
     {ok, FD} = file:open(Filename, [raw,binary]),
     try
-        send_file_body_loop(Req, 0, Length, FD)
+        send_file_body_loop(Req, 0, Length, FD, FinNoFin)
     after
         file:close(FD)
     end.
 
 send_device_body_parts(Req, {[{From,Length}], _Size, _Boundary, _ContentType}, IO) ->
     {ok, _} = file:position(IO, From), 
-    send_file_body_loop(Req, 0, Length, IO);
+    send_file_body_loop(Req, 0, Length, IO, fin);
 send_device_body_parts(Req, {Parts, Size, Boundary, ContentType}, IO) ->
     lists:foreach(
         fun({From,Length}) ->
             {ok, _} = file:position(IO, From), 
-            send_chunk(Req, part_preamble(Boundary, ContentType, From, Length, Size)),
-            send_file_body_loop(Req, 0, Length, IO),
-            send_chunk(Req, <<"\r\n">>)
+            send_chunk(Req, part_preamble(Boundary, ContentType, From, Length, Size), nofin),
+            send_file_body_loop(Req, 0, Length, IO, nofin),
+            send_chunk(Req, <<"\r\n">>, nofin)
         end,
         Parts),
-    send_final_chunk(Req, end_boundary(Boundary)).
+    send_chunk(Req, end_boundary(Boundary), fin).
 
 send_file_body_parts(Req, Parts, Filename) ->
     {ok, FD} = file:open(Filename, [raw,binary]),
@@ -230,7 +237,7 @@ send_file_body_parts(Req, Parts, Filename) ->
     end.
 
 send_parts(Req, Bin, {[{From,Length}], _Size, _Boundary, _ContentType}) ->
-    send_chunk(Req, binary:part(Bin,From,Length));
+    send_chunk(Req, binary:part(Bin,From,Length), nofin);
 send_parts(Req, Bin, {Parts, Size, Boundary, ContentType}) ->
     lists:foreach(
         fun({From,Length}) ->
@@ -239,37 +246,34 @@ send_parts(Req, Bin, {Parts, Size, Boundary, ContentType}) ->
                 Bin,
                 <<"\r\n">>
             ],
-            send_chunk(Req, Part)
+            send_chunk(Req, Part, nofin)
         end,
         Parts),
-    send_final_chunk(Req, end_boundary(Boundary)).
+    send_chunk(Req, end_boundary(Boundary), fin).
 
 
-send_file_body_loop(_Req, Offset, Size, _Device) when Offset =:= Size ->
+send_file_body_loop(_Req, Offset, Size, _Device, _FinNoFin) when Offset =:= Size ->
     ok;
-send_file_body_loop(Req, Offset, Size, Device) when Size - Offset =< ?FILE_CHUNK_LENGTH ->
+send_file_body_loop(Req, Offset, Size, Device, FinNoFin) when Size - Offset =< ?FILE_CHUNK_LENGTH ->
     {ok, Data} = file:read(Device, Size - Offset),
-    send_final_chunk(Req, Data);
-send_file_body_loop(Req, Offset, Size, Device) ->
+    send_chunk(Req, Data, FinNoFin);
+send_file_body_loop(Req, Offset, Size, Device, FinNoFin) ->
     {ok, Data} = file:read(Device, ?FILE_CHUNK_LENGTH),
-    send_chunk(Req, Data),
-    send_file_body_loop(Req, Offset+?FILE_CHUNK_LENGTH, Size, Device).
+    send_chunk(Req, Data, nofin),
+    send_file_body_loop(Req, Offset+?FILE_CHUNK_LENGTH, Size, Device, FinNoFin).
 
 send_writer_body(Req, BodyFun) ->
-    BodyFun(fun(Data, false) -> send_chunk(Req, Data);
-               (Data, true) -> send_final_chunk(Req, Data)
-            end),
-    send_final_chunk(Req, <<>>).
+    BodyFun(fun(Data, false) ->
+                    send_chunk(Req, Data, nofin);
+               (Data, true) ->
+                    send_chunk(Req, Data, fin)
+            end).
 
-send_chunk(_Req, <<>>) -> ok;
-send_chunk(_Req, []) -> ok;
-send_chunk(Req, Data) ->
+send_chunk(_Req, <<>>, nofin) -> ok;
+send_chunk(_Req, [], nofin) -> ok;
+send_chunk(Req, Data, FinNoFin) ->
     Data1 = iolist_to_binary(Data),
-    cowboy_req:send_body(Data1, nofin, Req).
-
-send_final_chunk(Req, Data) ->
-    Data1 = iolist_to_binary(Data),
-    cowboy_req:send_body(Data1, fin, Req).
+    ok = cowboy_req:stream_body(Data1, FinNoFin, Req).
 
 -spec get_range(cowboy_req:req()) -> {undefined|[{integer()|none,integer()|none}], cowboy_req:req()}.
 get_range(Req) ->
@@ -277,7 +281,7 @@ get_range(Req) ->
         false ->
             {undefined, Req#{ cowmachine_range => undefined }};
         true ->
-            case cowboy_req:get_header(<<"range">>, Req) of
+            case cowboy_req:header(<<"range">>, Req) of
                 undefined ->
                     {undefined, Req#{ cowmachine_range => undefined }};
                 RawRange ->

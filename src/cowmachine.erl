@@ -70,40 +70,42 @@ request_1(Controller, ControllerOpts, Req, Env, Options, Context) ->
     catch
         throw:{stop_request, 500, Reason} ->
             lager:error("[~p] stop_request ~p (reason ~p)", [Site, 500, Reason]),
-            handle_stop_request(500, Site, Reason, Req, State, Context);
+            handle_stop_request(500, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, ResponseCode, Reason} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
-            handle_stop_request(ResponseCode, Site, Reason, Req, State, Context);
+            handle_stop_request(ResponseCode, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, 500} ->
             StackTrace = erlang:get_stacktrace(),
             lager:error("[~p] stop_request ~p (stacktrace ~p)", [Site, 500, StackTrace]),
-            handle_stop_request(500, Site, undefined, Req, State, Context);
+            handle_stop_request(500, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
-            handle_stop_request(ResponseCode, Site, undefined, Req, State, Context);
+            handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode) ->
             {stop, {ResponseCode, Req}};
         throw:Error ->
-            Reason = {error, {throw, Error, erlang:get_stacktrace()}},
-            handle_stop_request(500, Site, Reason, Req, State, Context);
+            Stacktrace = erlang:get_stacktrace(),
+            lager:warning("[~p] Error throw:~p in ~p", [Site, Error, Stacktrace]),
+            handle_stop_request(500, Site, {throw, {Error, Stacktrace}}, Req, Env, State, Context);
         Type:Error ->
             Stacktrace = erlang:get_stacktrace(),
             lager:warning("[~p] Error ~p:~p in ~p", [Site, Type, Error, Stacktrace]),
             {stop, {500, Req}}
     end.
 
-handle_stop_request(ResponseCode, Site, Reason, Req, State, Context) ->
-    Bindings = [
-        {error_reason, Reason},
-        {http_status_code, ResponseCode}
-    ],
+% @todo add the error controller as an application env, if not defined then just terminate with the corresponding error code.
+handle_stop_request(ResponseCode, Site, Reason, Req, Env, State, Context) ->
     State1 = State#cmstate{
         controller = controller_http_error,
         controller_options = []
     },
-    Req1 = Req#{bindings => Bindings},
-    Context1 = cowmachine_req:set_req(cowmachine_req:init_req(Req1), Context),
+    % Req1 = Req#{bindings => []},
+    Context1 = cowmachine_req:set_req(cowmachine_req:init_req(Req, Env), Context),
+    Context2 = cowmachine_req:set_metadata(controller_module_error, State#cmstate.controller, Context1),
+    Context3 = cowmachine_req:set_metadata(http_status_code, ResponseCode, Context2),
+    Context4 = cowmachine_req:set_metadata(error_reason, Reason, Context3),
     try
-        {_Finish, _StateResult, ContextResult} = cowmachine_decision_core:handle_request(State1, Context1),
-        cowmachine_response:send_response(ContextResult, State#cmstate.env)
+        {_Finish, _StateResult, ContextResult} = cowmachine_decision_core:handle_request(State1, Context4),
+        ContextRespCode = cowmachine_req:set_response_code(ResponseCode, ContextResult),
+        cowmachine_response:send_response(ContextRespCode, Env)
     catch
         throw:{stop_request, Code, Reason} ->
             lager:warning("[~p] Error ~p (reason ~p)", [Site, Code, Reason]),

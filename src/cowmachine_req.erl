@@ -122,31 +122,30 @@
 %% @doc Set some intial metadata in the cowboy req
 -spec init_req(cowboy_req:req(), cowboy_middleware:env()) -> cowboy_req:req().
 init_req(Req, Env) ->
-    Req1 = Req#{
+    Bindings = maps:get(bindings, Req, []),
+    Req#{
         cowmachine_site => maps:get(site, Env, undefined),
 
         cowmachine_resp_code => 500,
         cowmachine_resp_redirect => false,
-        cowmachine_resp_cookies => [],
         cowmachine_resp_content_encoding => <<"identity">>,
         cowmachine_resp_transfer_encoding => undefined,
         cowmachine_resp_content_type => <<"binary/octet-stream">>,
         cowmachine_resp_chosen_charset => undefined,
         cowmachine_resp_body => undefined,
 
-        cowmachine_disp_path => undefined,
+        cowmachine_disp_path => proplists:get_value('*', Bindings),
         cowmachine_range_ok => true,
 
         cowmachine_peer => peer_req(Req),
         cowmachine_cookies => cowboy_req:parse_cookies(Req)
-    },
-    cowboy_req:set_resp_header(<<"server">>, maps:get(Env, server_header, <<"Cowmachine">>), Req1).
+    }.
 
 
 %% @doc Optionally wrap the cowboy request in the context.
 -spec set_req(cowboy_req:req(), context()) -> context().
 set_req(Req, Context) when is_tuple(Context) ->
-    erlang:setelement(Context, 2, Req);
+    erlang:setelement(2, Context, Req);
 set_req(Req, OldReq) when is_map(OldReq); OldReq =:= undefined ->
     Req.
 
@@ -198,10 +197,9 @@ base_uri(Context) ->
 %% @doc Return the scheme used (https or http)
 -spec scheme(context()) -> http|https.
 scheme(Context) ->
-    Transport = cowboy_req:transport(req(Context)),
-    case Transport:secure() of
-        true -> https;
-        false -> http
+    case cowboy_req:scheme(req(Context)) of
+        <<"http">> -> http;
+        <<"https">> -> https
     end.
 
 %% @doc Return the http host
@@ -217,8 +215,7 @@ port(Context) ->
 %% @doc Check if the connection is secure (SSL)
 -spec is_ssl(context()) -> boolean().
 is_ssl(Context) ->
-    Transport = cowboy_req:transport(req(Context)),
-    Transport:secure().
+    https =:= scheme(Context).
 
 %% @doc Return the peer of this request, take x-forwarded-for into account if the peer
 %%      is an ip4 LAN address
@@ -243,7 +240,7 @@ peer_from_peername(_Error, Req) ->
     x_peername(<<"-">>, Req).
 
 x_peername(Default, Req) ->
-    case cowboy_req:get_header(<<"x-forwarded-for">>, Req) of
+    case cowboy_req:header(<<"x-forwarded-for">>, Req) of
         undefined -> Default;
         Hosts -> z_string:trim(lists:last(binary:split(Hosts, <<",">>, [global])))
     end.
@@ -342,15 +339,14 @@ remove_resp_header(Header, Context) ->
 %% @doc Add a cookie to the response cookies
 -spec set_resp_cookie(binary(), binary(), list(), context()) -> context().
 set_resp_cookie(Key, Value, Options, Context) ->
-    Req = req(Context),
-    Hdr = cow_cookies:set_cookie(Key, Value, Options),
-    Cookies = maps:get(cowmachine_resp_cookies, Req),
-    set_req(Req#{cowmachine_resp_cookies => [Hdr | Cookies]}, Context).
+    Options1 = [ {K,V} || {K,V} <- Options, V =/= undefined ],
+    Req = cowboy_req:set_resp_cookie(Key, Value, maps:from_list(Options1), req(Context)),
+    set_req(Req, Context).
 
 %% @doc Fetch all response cookies.
 -spec get_resp_cookies(context()) -> [ binary() ].
 get_resp_cookies(Context) ->
-    maps:get(cowmachine_resp_cookies, req(Context)).
+    maps:to_list(maps:get(resp_cookies, req(Context))).
 
 %% @doc Fetch the value of a cookie.
 -spec get_cookie_value(binary(), context()) -> binary() | undefined.
@@ -468,10 +464,10 @@ req_body(Context) ->
 -spec req_body(pos_integer(), context()) -> {binary()|undefined, context()}.
 req_body(MaxLength, Context) when MaxLength > 0 ->
     Req = req(Context),
-    Opts = [
-        {length, MaxLength},
-        {read_timeout, 10000}
-    ],
+    Opts = #{
+        length => MaxLength,
+        read_timeout => 10000
+    },
     case cowboy_req:read_body(Req, Opts) of
         {ok, Body, Req2} ->
             {Body, set_req(Req2, Context)};
@@ -483,11 +479,11 @@ req_body(MaxLength, Context) when MaxLength > 0 ->
 
 -spec stream_req_body(integer(), context()) -> {ok|more, binary(), context()}.
 stream_req_body(ChunkSize, Context) ->
-    Opts = [
-        % {length, 1024*1024*1024},
-        {length, ChunkSize},
-        {read_timeout, 10000}
-    ],
+    Opts = #{
+        % length => 1024*1024*1024,
+        length => ChunkSize,
+        read_timeout => 10000
+    },
     {Next, Chunk, Req1} = cowboy_req:read_body(req(Context), Opts),
     {Next, Chunk, set_req(Req1, Context)}.
 

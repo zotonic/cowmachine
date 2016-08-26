@@ -28,8 +28,9 @@
 
 -include("cowmachine_state.hrl").
 
-handle_request(CmState, Context) ->
+handle_request(#cmstate{controller=Controller} = CmState, Context) ->
     try
+        code:ensure_loaded(Controller),
         d(v3b13, CmState, Context)
     catch
         error:Error ->
@@ -47,7 +48,7 @@ controller_call(Callback, #cmstate{cache=Cache} = State, Context) ->
                     {T, Context1} = cowmachine_controller:do(Callback, State, Context),
                     State1 = State#cmstate{cache = Cache#{Callback => T}},
                     {T, State1, Context1};
-                Cached -> 
+                {ok, Cached} -> 
                     {Cached, State, Context}
             end;
         false ->
@@ -240,14 +241,14 @@ decision(v3b3, State, Context) ->
     end;
 %% Accept exists?
 decision(v3c3, State, Context) ->
-    {ContentTypes, S1, C1} = controller_call(content_types_provided, State, Context),
-    PTypes = [Type || {Type,_Fun} <- ContentTypes],
-    case cowmachine_req:get_req_header(<<"accept">>, C1) of
+    case cowmachine_req:get_req_header(<<"accept">>, Context) of
         undefined ->
-            CTCtx = cowmachine_req:set_resp_content_type(hd(PTypes), C1),
+            {ContentTypes, S1, C1} = controller_call(content_types_provided, State, Context),
+            {Type, _Fun} = hd(ContentTypes),
+            CTCtx = cowmachine_req:set_resp_content_type(Type, C1),
             d(v3d4, S1, CTCtx);
         _ ->
-            d(v3c4, S1, C1)
+            d(v3c4, State, Context)
     end;
 %% Acceptable media type available?
 decision(v3c4, State, Context) ->
