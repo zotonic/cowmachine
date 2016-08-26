@@ -38,6 +38,7 @@
     peer/1,
 
     raw_path/1,
+    path/1,
     qs/1,
     req_qs/1,
 
@@ -246,9 +247,18 @@ x_peername(Default, Req) ->
     end.
 
 
-%% @doc Return the undecoded request path as-is
+%% @doc Return the undecoded request path as-is, including the query string
 -spec raw_path(context()) -> binary().
 raw_path(Context) ->
+    Path = cowboy_req:path(req(Context)),
+    case qs(Context) of
+        <<>> -> Path;
+        Qs -> <<Path/binary, Qs/binary>>
+    end.
+
+%% @doc Return the undecoded request path as-is
+-spec path(context()) -> binary().
+path(Context) ->
     cowboy_req:path(req(Context)).
 
 %% @doc Return the undecoded query string, <<>> when no query string.
