@@ -35,7 +35,9 @@
     host/1,
     port/1,
     is_ssl/1,
+    is_proxy/1,
     peer/1,
+    peer_ip/1,
 
     raw_path/1,
     path/1,
@@ -122,7 +124,8 @@
 
 %% @doc Set some intial metadata in the cowboy req
 -spec init_req(cowboy_req:req(), cowboy_middleware:env()) -> cowboy_req:req().
-init_req(Req, Env) ->
+init_req(Req0, Env) ->
+    Req = ensure_proxy_args(Req0),
     Bindings = maps:get(bindings, Req, []),
     Req#{
         cowmachine_site => maps:get(site, Env, undefined),
@@ -138,10 +141,14 @@ init_req(Req, Env) ->
         cowmachine_disp_path => proplists:get_value('*', Bindings),
         cowmachine_range_ok => true,
 
-        cowmachine_peer => peer_req(Req),
         cowmachine_cookies => cowboy_req:parse_cookies(Req)
     }.
 
+ensure_proxy_args(Req) ->
+    case maps:get(cowmachine_proxy, Req, undefined) of
+        undefined -> cowmachine_proxy:update_req(Req);
+        IsProxy when is_boolean(IsProxy) -> Req
+    end.
 
 %% @doc Optionally wrap the cowboy request in the context.
 -spec set_req(cowboy_req:req(), context()) -> context().
@@ -185,8 +192,8 @@ base_uri(Context) ->
     Uri = [
         z_convert:to_binary(Scheme),
         <<"://">>,
-        cowboy_req:host(Req),
-        case cowboy_req:port(Req) of
+        host(Req),
+        case port(Req) of
             80 when Scheme =:= http -> [];
             433 when Scheme =:= https -> [];
             Port -> [ $:, integer_to_binary(Port) ]
@@ -198,7 +205,7 @@ base_uri(Context) ->
 %% @doc Return the scheme used (https or http)
 -spec scheme(context()) -> http|https.
 scheme(Context) ->
-    case cowboy_req:scheme(req(Context)) of
+    case maps:get(cowmachine_forwarded_proto, req(Context)) of
         <<"http">> -> http;
         <<"https">> -> https
     end.
@@ -206,45 +213,34 @@ scheme(Context) ->
 %% @doc Return the http host
 -spec host(context()) -> binary().
 host(Context) ->
-    cowboy_req:host(req(Context)).
+    maps:get(cowmachine_forwarded_host, req(Context)).
 
 %% @doc Return the http port
 -spec port(context()) -> integer().
 port(Context) ->
-    cowboy_req:port(req(Context)).
+    maps:get(cowmachine_forwarded_port, req(Context)).
 
 %% @doc Check if the connection is secure (SSL)
 -spec is_ssl(context()) -> boolean().
 is_ssl(Context) ->
     https =:= scheme(Context).
 
+%% @doc Check if the request is forwarded by a proxy
+-spec is_proxy(context()) -> boolean().
+is_proxy(Context) ->
+    maps:get(cowmachine_proxy, req(Context)).
+
 %% @doc Return the peer of this request, take x-forwarded-for into account if the peer
 %%      is an ip4 LAN address
 -spec peer(context()) -> binary().
 peer(Context) ->
-    maps:get(cowmachine_peer, req(Context)).
+    maps:get(cowmachine_remote, req(Context)).
 
-peer_req(Req) ->
-    z_convert:to_binary(peer_from_peername(cowboy_req:peer(Req), Req)).
-
-peer_from_peername({Addr={10, _, _, _}, _Port}, Req) ->  
-    x_peername(inet_parse:ntoa(Addr), Req);
-peer_from_peername({Addr={172, Second, _, _}, _Port}, Req) when (Second > 15) andalso (Second < 32) ->
-    x_peername(inet_parse:ntoa(Addr), Req);
-peer_from_peername({Addr={192, 168, _, _}, _Port}, Req) ->
-    x_peername(inet_parse:ntoa(Addr), Req);
-peer_from_peername({{127, 0, 0, 1}, _Port}, Req) ->
-    x_peername(<<"127.0.0.1">>, Req);
-peer_from_peername({Addr, _Port}, _Req) ->
-    inet_parse:ntoa(Addr);
-peer_from_peername(_Error, Req) ->
-    x_peername(<<"-">>, Req).
-
-x_peername(Default, Req) ->
-    case cowboy_req:header(<<"x-forwarded-for">>, Req) of
-        undefined -> Default;
-        Hosts -> z_string:trim(lists:last(binary:split(Hosts, <<",">>, [global])))
-    end.
+%% @doc Return the peer of this request, take x-forwarded-for into account if the peer
+%%      is an ip4 LAN address
+-spec peer_ip(context()) -> tuple().
+peer_ip(Context) ->
+    maps:get(cowmachine_remote_ip, req(Context)).
 
 
 %% @doc Return the undecoded request path as-is, including the query string

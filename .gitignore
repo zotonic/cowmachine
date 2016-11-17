@@ -9,3 +9,7 @@ rel/example_project
 .concrete/DEV_MODE
 .rebar
 .rebar3
+_build
+_checkout
+compile_commands.json
+rebar3

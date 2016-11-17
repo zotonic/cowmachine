@@ -1,22 +1,23 @@
-REBAR := $(shell which rebar 2>/dev/null || echo ./rebar)
-REBAR_URL := https://github.com/rebar/rebar/wiki/rebar
+ERL       ?= erl
+ERLC      ?= $(ERL)c
+REBAR     := ./rebar3
+REBAR_URL := https://s3-eu-west-1.amazonaws.com/zotonic-rebar/rebar3
 
 .PHONY: compile test
 
 all: compile
 
 compile: $(REBAR)
-    $(REBAR) get-deps compile
+	$(REBAR) compile
 
 test: $(REBAR)
-    $(REBAR) -C rebar.test.config get-dep compile
-    $(REBAR) -C rebar.test.config eunit -v skip_deps=true
+	$(REBAR) eunit
 
 clean:
-    $(REBAR) clean
+	$(REBAR) clean
 
-./rebar:
-    erl -noshell -s inets start -s ssl start \
-        -eval '{ok, saved_to_file} = httpc:request(get, {"$(REBAR_URL)", []}, [], [{stream, "./rebar"}])' \
-        -s inets stop -s init stop
-    chmod +x ./rebar
+$(REBAR):
+	$(ERL) -noshell -s inets -s ssl \
+	  -eval '{ok, saved_to_file} = httpc:request(get, {"$(REBAR_URL)", []}, [], [{stream, "$(REBAR)"}])' \
+	  -s init stop
+	chmod +x $(REBAR)
