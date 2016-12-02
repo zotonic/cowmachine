@@ -19,7 +19,7 @@
   0},
  {<<"ranch">>,
   {git,"https://github.com/ninenines/ranch.git",
-       {ref,"00f49368c5a7c7375e3f0a01b661d917d4546595"}},
+       {ref,"cba84529f64587827451705a7357fb708b2b58b0"}},
   0},
  {<<"sendfile">>,
   {git,"git://github.com/tuncer/sendfile.git",
@@ -27,7 +27,7 @@
   0},
  {<<"z_stdlib">>,
   {git,"git://github.com/zotonic/z_stdlib.git",
-       {ref,"f2d4263944fceb9565d9ec523c2863c61f4baba0"}},
+       {ref,"7959372ef99a227b12ddb8b39fd661ef67280edc"}},
   0}]}.
 [
 {pkg_hash,[
