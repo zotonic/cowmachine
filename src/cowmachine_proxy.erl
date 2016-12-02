@@ -213,28 +213,16 @@ is_trusted_proxy(none, _Peer) ->
 is_trusted_proxy(any, _Peer) ->
     true;
 is_trusted_proxy(local, Peer) ->
-    is_local(Peer);
+    z_ip_address:is_local(Peer);
 is_trusted_proxy(ip_whitelist, Peer) ->
     case application:get_env(cowmachine, ip_whitelist) of
         {ok, Whitelist} ->
-            is_trusted_proxy(Whitelist, Peer);
+            z_ip_address:ip_match(Peer, Whitelist);
         undefined ->
-            is_trusted_proxy(local, Peer)
+            z_ip_address:is_local(Peer)
     end;
-is_trusted_proxy(Whitelist, Peer) when is_list(Whitelist) ->
-    %% @todo hook into the routines checking ip_whitelist in zotonic
-    false.
-
-
-%% Check if matching "127.0.0.0/8,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12,169.254.0.0/16,::1,fd00::/8,fe80::/10"
-is_local({127,_,_,_}) -> true;
-is_local({10,_,_,_}) -> true;
-is_local({192,168,_,_}) -> true;
-is_local({169,254,_,_}) -> true;
-is_local({172,X,_,_}) when X >= 16, X =< 31 -> true;
-is_local({X,_,_,_,_,_,_,_}) when X >= 16#fd00, X =< 16#fdff -> true;
-is_local({X,_,_,_,_,_,_,_}) when X >= 16#fe80, X =< 16#fecf -> true;
-is_local(_) -> false.
+is_trusted_proxy(Whitelist, Peer) when is_list(Whitelist), is_binary(Whitelist) ->
+    z_ip_address:ip_match(Peer, Whitelist).
 
 
 % Extra host sanitization as cowboy is too lenient.
