@@ -8,9 +8,9 @@
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
-%% 
+%%
 %%     http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -200,7 +200,7 @@ base_uri(Context) ->
         end,
         $/
     ],
-    iolist_to_binary(Uri). 
+    iolist_to_binary(Uri).
 
 %% @doc Return the scheme used (https or http)
 -spec scheme(context()) -> http|https.
@@ -461,7 +461,7 @@ has_resp_body(Context) ->
         _ -> true
     end.
 
-%% @doc Fetch the request body as a single binary. 
+%% @doc Fetch the request body as a single binary.
 %% Per default we don't receive more than ~128K bytes.
 -spec req_body(context()) -> {binary()|undefined, context()}.
 req_body(Context) ->
@@ -478,8 +478,8 @@ req_body(MaxLength, Context) when MaxLength > 0 ->
         {ok, Body, Req2} ->
             {Body, set_req(Req2, Context)};
         {more, _Body, Req2} ->
-            lager:warning("[~p] Dropped request body, as it is larger than ~p bytes.",
-                          [site(Context), MaxLength]),
+            lager:warning("Dropped request body, as it is larger than ~p bytes.",
+                          [MaxLength]),
             {undefined, set_req(Req2, Context)}
     end.
 
