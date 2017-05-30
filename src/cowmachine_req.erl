@@ -346,7 +346,7 @@ remove_resp_header(Header, Context) ->
 -spec set_resp_cookie(binary(), binary(), list(), context()) -> context().
 set_resp_cookie(Key, Value, Options, Context) ->
     Options1 = [ {K,V} || {K,V} <- Options, V =/= undefined ],
-    Req = cowboy_req:set_resp_cookie(Key, Value, maps:from_list(Options1), req(Context)),
+    Req = cowboy_req:set_resp_cookie(Key, Value, req(Context), maps:from_list(Options1)),
     set_req(Req, Context).
 
 %% @doc Fetch all response cookies.
