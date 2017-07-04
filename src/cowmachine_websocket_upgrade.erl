@@ -9,4 +9,7 @@
 upgrade(Handler, Context) ->
     Req = cowmachine_req:req(Context),
     Env = #{},
-    cowboy_websocket:upgrade(Req, Env, Handler, Context, infinity, run).
+    Opts = #{
+        idle_timeout => infinity
+    },
+    cowboy_websocket:upgrade(Req, Env, Handler, Context, Opts).
