@@ -1,17 +1,17 @@
 {"1.1.0",
 [{<<"cowboy">>,
   {git,"git://github.com/ninenines/cowboy.git",
-       {ref,"d8d7838a77cdb5c83e1994452122b5891db599cb"}},
+       {ref,"2bcb3902570ee4411dfe526e2662a55751d5c1d9"}},
   0},
  {<<"cowlib">>,
   {git,"https://github.com/ninenines/cowlib",
-       {ref,"4c9fe1f532ac7943361cac81c2edd4484790ae68"}},
+       {ref,"93d68bcccc118ef1b72622efc95f9fde5252c3ff"}},
   1},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.8">>},1},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.2.1">>},0},
  {<<"mochiweb">>,
   {git,"git://github.com/zotonic/mochiweb.git",
-       {ref,"1b1da197c4b3249bb3998a4324cc564546c8c6b6"}},
+       {ref,"d912076304dbb21daceee61adabdccb9c1554eb6"}},
   0},
  {<<"parse_trans">>,
   {git,"git://github.com/uwiger/parse_trans.git",
@@ -19,18 +19,16 @@
   0},
  {<<"ranch">>,
   {git,"https://github.com/ninenines/ranch.git",
-       {ref,"a004ad710eddd0c21aaccc30d5633a76b06164b5"}},
+       {ref,"55c2a9d623454f372a15e99721a37093d8773b48"}},
   0},
  {<<"sendfile">>,
   {git,"git://github.com/tuncer/sendfile.git",
-       {ref,"d3ac0d07f10604a97ef1c8783bd4701be3aa415e"}},
+       {ref,"a21180d1bab6b232cb9d8dc02d4771105a042378"}},
   0},
- {<<"z_stdlib">>,
-  {git,"git://github.com/zotonic/z_stdlib.git",
-       {ref,"37b2b4c93338ff0bb5389f07fa27f7eab7f7b93c"}},
-  0}]}.
+ {<<"zotonic_stdlib">>,{pkg,<<"zotonic_stdlib">>,<<"1.0.0-alpha2">>},0}]}.
 [
 {pkg_hash,[
  {<<"goldrush">>, <<"2024BA375CEEA47E27EA70E14D2C483B2D8610101B4E852EF7F89163CDB6E649">>},
- {<<"lager">>, <<"EEF4E18B39E4195D37606D9088EA05BF1B745986CF8EC84F01D332456FE88D17">>}]}
+ {<<"lager">>, <<"EEF4E18B39E4195D37606D9088EA05BF1B745986CF8EC84F01D332456FE88D17">>},
+ {<<"zotonic_stdlib">>, <<"62625C995D0ED0DF4DA314BEFA47605D78FEF121A0CAF65521557D6725D40B0A">>}]}
 ].
