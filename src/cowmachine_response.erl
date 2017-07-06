@@ -359,7 +359,7 @@ make_range_headers([{Start, Length}], Size, _ContentType) ->
                   {<<"content-length">>, integer_to_binary(Length)}],
     {HeaderList, none};
 make_range_headers(Parts, Size, ContentType) when is_list(Parts) ->
-    Boundary = iolist_to_binary(mochihex:to_hex(rand_bytes(8))),
+    Boundary = to_hex(rand_bytes(8)),
     Lengths = [
         iolist_size(part_preamble(Boundary, ContentType, Start, Length, Size)) + Length + 2
         || {Start,Length} <- Parts
@@ -406,3 +406,23 @@ rand_bytes(N) when N > 0 ->
             lager:info("Crypto is low on entropy"),
             list_to_binary([rand:uniform(256) || _X <- lists:seq(1, N)])
     end.
+
+
+% to_hex author is Bob Ippolito <bob@mochimedia.com>
+% copyright 2006 Mochi Media, Inc.
+
+-spec to_hex(binary()) -> binary().
+to_hex(B) ->
+    iolist_to_binary(to_hex(B, [])).
+
+to_hex(<<>>, Acc) ->
+    lists:reverse(Acc);
+to_hex(<<C1:4, C2:4, Rest/binary>>, Acc) ->
+    to_hex(Rest, [hexdigit(C2), hexdigit(C1) | Acc]).
+
+-spec hexdigit(integer()) -> char().
+hexdigit(C) when C >= 0, C =< 9 ->
+    C + $0;
+hexdigit(C) when C =< 15 ->
+    C + $a - 10.
+
