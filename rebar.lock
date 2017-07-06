@@ -13,10 +13,7 @@
   {git,"git://github.com/zotonic/mochiweb.git",
        {ref,"d912076304dbb21daceee61adabdccb9c1554eb6"}},
   0},
- {<<"parse_trans">>,
-  {git,"git://github.com/uwiger/parse_trans.git",
-       {ref,"6f3645afb43c7c57d61b54ef59aecab288ce1013"}},
-  0},
+ {<<"parse_trans">>,{pkg,<<"parse_trans">>,<<"3.0.0">>},0},
  {<<"ranch">>,
   {git,"https://github.com/ninenines/ranch.git",
        {ref,"55c2a9d623454f372a15e99721a37093d8773b48"}},
@@ -30,5 +27,6 @@
 {pkg_hash,[
  {<<"goldrush">>, <<"2024BA375CEEA47E27EA70E14D2C483B2D8610101B4E852EF7F89163CDB6E649">>},
  {<<"lager">>, <<"EEF4E18B39E4195D37606D9088EA05BF1B745986CF8EC84F01D332456FE88D17">>},
+ {<<"parse_trans">>, <<"9E96B1C9C3A0DF54E7B76F8F685D38BFA1EB21B31E042B1D1A5A70258E4DB1E3">>},
  {<<"zotonic_stdlib">>, <<"62625C995D0ED0DF4DA314BEFA47605D78FEF121A0CAF65521557D6725D40B0A">>}]}
 ].
