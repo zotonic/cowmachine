@@ -18,10 +18,6 @@
   {git,"https://github.com/ninenines/ranch.git",
        {ref,"55c2a9d623454f372a15e99721a37093d8773b48"}},
   0},
- {<<"sendfile">>,
-  {git,"git://github.com/tuncer/sendfile.git",
-       {ref,"a21180d1bab6b232cb9d8dc02d4771105a042378"}},
-  0},
  {<<"zotonic_stdlib">>,{pkg,<<"zotonic_stdlib">>,<<"1.0.0-alpha2">>},0}]}.
 [
 {pkg_hash,[

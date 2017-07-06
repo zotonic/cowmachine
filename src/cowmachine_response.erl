@@ -25,7 +25,6 @@
 
 -export([
      send_response/2,
-     use_sendfile/0,
      server_header/0
      ]).
 
@@ -43,19 +42,6 @@ server_header() ->
         undefined ->
             {ok, Version} = application:get_key(cowmachine, vsn),
             <<"CowMachine/", (z_convert:to_binary(Version))/binary>>
-    end.
-
-
-use_sendfile() ->
-    case application:get_env(cowmachine, use_sendfile) of
-        undefined -> disable;
-        {ok, disable} -> disable;
-        {ok, erlang} -> erlang;
-        {ok, yaws} -> 
-            case sendfile:enabled() of
-                true -> yaws;
-                false -> disable
-            end
     end.
 
 -spec send_response(cowmachine_req:context(), Env) -> {ok, Req, Env} | {stop, Req}
