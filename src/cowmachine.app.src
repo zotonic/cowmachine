@@ -5,8 +5,7 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib,
-                  sendfile
+                  stdlib
                  ]},
   {env, [
         {use_sendfile, erlang}
