@@ -19,33 +19,41 @@ Main differences with Basho’s Webmachine are:
 
 Cowmachine is at Hex, in your `rebar.config` file use:
 
-    {deps, [
-        {cowmachine, "1.0.0"}
-    ]}.
+```erlang
+{deps, [
+    {cowmachine, "1.0.0"}
+]}.
+```
 
 You can also use the direct Git url and use the development version:
 
-    {deps, [
-        {cowmachine, {git, "", {branch, "master"}}}
-    ]}.
+```erlang
+{deps, [
+    {cowmachine, {git, "", {branch, "master"}}}
+]}.
+```
 
 ## Calling Cowmachine
 
 Cowmachine can be called from your Cowboy middleware:
 
-    -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
-        when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-    execute(Req, Env) ->
-        Controller = mycontroller,
-        ControllerOpts = [ ],
-        Options = #{
-            on_welformed =>
-                fun(Ctx) ->
-                    % Perform anything after well-formedness check of your request
-                    % Examples are parsing the query args, or authentication
-                end
-        },
-        cowmachine:request(Controller, ControllerOpts, Req, Env, Options, Context3).
+```erlang
+-spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
+    when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+execute(Req, Env) ->
+    % Replace below with your own controller module
+    Controller = mycontroller,
+    ControllerOpts = [ ],
+    % Set options for the cowmachine and handle the request
+    Options = #{
+        on_welformed =>
+            fun(Ctx) ->
+                % Perform anything after well-formedness check of your request
+                % Examples are parsing the query args, or authentication
+            end
+    },
+    cowmachine:request(Controller, ControllerOpts, Req, Env, Options, Context3).
+```
 
 ## Dispatching
 
