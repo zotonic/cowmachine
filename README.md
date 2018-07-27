@@ -50,7 +50,7 @@ Cowmachine can be called from your Cowboy middleware:
 
 ## Dispatching
 
-You can use the dispatch compiler at https://github.com/zotonic/dispatch_compiler to match your controlelr paths against the request.
+You can use the [Zotonic Dispatch Compiler](https://github.com/zotonic/dispatch_compiler) to match your controller paths against the request.
 
 
 ## Controller
@@ -59,4 +59,5 @@ The controller provides the callbacks to handle the request.
 
 The controller is an Erlang module implementing callback functions, only functions that return some non-default value need to be implemented.
 
-For the controller callbacks
+For the controller callbacks and more documentation, check the [wiki pages](https://github.com/zotonic/cowmachine/wiki).
+
