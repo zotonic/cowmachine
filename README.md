@@ -44,6 +44,7 @@ execute(Req, Env) ->
     % Replace below with your own controller module
     Controller = mycontroller,
     ControllerOpts = [ ],
+    ControllerRequestArg = Req,
     % Set options for the cowmachine and handle the request
     Options = #{
         on_welformed =>
@@ -52,7 +53,7 @@ execute(Req, Env) ->
                 % Examples are parsing the query args, or authentication
             end
     },
-    cowmachine:request(Controller, ControllerOpts, Req, Env, Options, Context3).
+    cowmachine:request(Controller, ControllerOpts, Req, Env, Options, ControllerRequestArg).
 ```
 
 ## Dispatching
