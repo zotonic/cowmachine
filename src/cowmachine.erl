@@ -24,7 +24,7 @@
 
 -export([
     execute/2,
-    request/6
+    request/5
 ]).
 
 -include("cowmachine_state.hrl").
@@ -33,28 +33,27 @@
 %%      requests a redirect or return a 400 on an unknown host.
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-execute(Req, #{controller:=Controller, controller_options:=ControllerOpts} = Env) ->
+execute(Req, #{ controller := Controller } = Env) ->
     Context = maps:get(context, Env, Req),
-    request(Controller, ControllerOpts, Req, Env, #{}, Context).
+    request(Controller, Req, Env, #{}, Context).
 
 
 %% @doc Handle a request, executes the cowmachine http states. Can be used by middleware
 %% functions to add some additional initialization of controllers or context.
--spec request(atom(), list(), Req, Env, map(), term()) -> {ok, Req, Env} | {stop, Req}
+-spec request(atom(), Req, Env, map(), term()) -> {ok, Req, Env} | {stop, Req}
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-request(Controller, ControllerOpts, Req, Env, Options, Context) ->
-    case request_1(Controller, ControllerOpts, Req, Env, Options, Context) of
+request(Controller, Req, Env, Options, Context) ->
+    case request_1(Controller, Req, Env, Options, Context) of
         {upgrade, UpgradeFun, _StateResult, ContextResult} ->
             Controller:UpgradeFun(ContextResult);
         Other ->
             Other
     end.
 
-request_1(Controller, ControllerOpts, Req, Env, Options, Context) ->
+request_1(Controller, Req, Env, Options, Context) ->
     State = #cmstate{
-        env=Env,
-        controller=Controller,
-        controller_options=ControllerOpts,
+        env = Env,
+        controller = Controller,
         cache = #{},
         options = Options
     },
@@ -94,8 +93,7 @@ request_1(Controller, ControllerOpts, Req, Env, Options, Context) ->
 % @todo add the error controller as an application env, if not defined then just terminate with the corresponding error code.
 handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
     State1 = State#cmstate{
-        controller = controller_http_error,
-        controller_options = []
+        controller = controller_http_error
     },
     % Req1 = Req#{bindings => []},
     Context1 = cowmachine_req:set_req(cowmachine_req:init_req(Req, Env), Context),
