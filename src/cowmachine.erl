@@ -3,7 +3,7 @@
 %%
 %% @doc Cowmachine: webmachine middleware for Cowboy/Zotonic
 
-%% Copyright 2016 Marc Worrell
+%% Copyright 2016-2018 Marc Worrell
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 
 -export([
     execute/2,
-    request/5
+    request/4
 ]).
 
 -include("cowmachine_state.hrl").
@@ -32,17 +32,26 @@
 %% @doc Cowboy middleware, route the new request. Continue with the cowmachine,
 %%      requests a redirect or return a 400 on an unknown host.
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
-    when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+    when Req :: cowboy_req:req(),
+         Env :: cowboy_middleware:env().
 execute(Req, #{ controller := Controller } = Env) ->
-    Context = maps:get(context, Env, Req),
-    request(Controller, Req, Env, #{}, Context).
+    case maps:get(context, Env, undefined) of
+        undefined ->
+            request(Controller, Req, Env, #{});
+        Context ->
+            Context1 = cowmachine_req:set_req(Req, Context),
+            request(Controller, Context1, Env, #{})
+    end.
 
 
 %% @doc Handle a request, executes the cowmachine http states. Can be used by middleware
 %% functions to add some additional initialization of controllers or context.
--spec request(atom(), Req, Env, map(), term()) -> {ok, Req, Env} | {stop, Req}
-    when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-request(Controller, Req, Env, Options, Context) ->
+-spec request(Controller::module(), Context, Env, Options::map()) -> {ok, Req, Env} | {stop, Req}
+    when Context :: cowboy_req:req() | tuple(),
+         Req :: cowboy_req:req(),
+         Env :: cowboy_middleware:env().
+request(Controller, Context, Env, Options) ->
+    Req = cowmachine_req:req(Context),
     case request_1(Controller, Req, Env, Options, Context) of
         {upgrade, UpgradeFun, _StateResult, ContextResult} ->
             Controller:UpgradeFun(ContextResult);
