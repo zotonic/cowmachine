@@ -5,7 +5,7 @@
 digraph ControllerFSM {
     //splines=ortho;
 
-    graph [center=start rankdir=LR ]
+    graph [center=start rankdir=TB ]
     node [shape=box style=rounded];
 
 
