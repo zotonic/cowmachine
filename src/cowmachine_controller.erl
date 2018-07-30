@@ -55,6 +55,8 @@ default(allowed_methods) ->
     [<<"GET">>, <<"HEAD">>];
 default(known_methods) ->
     [<<"GET">>, <<"HEAD">>, <<"POST">>, <<"PUT">>, <<"DELETE">>, <<"TRACE">>, <<"CONNECT">>, <<"OPTIONS">>];
+default(validate_content_checksum) ->
+    not_validated;
 default(content_types_provided) ->
     [{<<"text/html">>, to_html}];
 default(content_types_accepted) ->
