@@ -156,13 +156,16 @@ decision_flow({ErrCode, Reason}, _TestResult, State, Context) when is_integer(Er
 %% "Service Available"
 decision(v3b13, State, Context) -> 
     decision_test(controller_call(service_available, State, Context), true, v3b12, 503);
+
 %% "Known method?"
 decision(v3b12, State, Context) ->
     {Methods, S1, C1} = controller_call(known_methods, State, Context),
     decision_test(lists:member(cowmachine_req:method(C1), Methods), true, v3b11, 501, S1, C1);
+
 %% "URI too long?"
 decision(v3b11, State, Context) ->
     decision_test(controller_call(uri_too_long, State, Context), true, 414, v3b10);
+
 %% "Method allowed?"
 decision(v3b10, State, Context) ->
     {Methods, S1, C1} = controller_call(allowed_methods, State, Context),
@@ -173,11 +176,41 @@ decision(v3b10, State, Context) ->
             CtxAllow = cowmachine_req:set_resp_header(<<"allow">>, [z_convert:to_binary(M) || M <- Methods], C1),
             respond(405, S1, CtxAllow)
     end;
-%% "Malformed?"
+
+%% "Content-MD5 present?"
 decision(v3b9, State, Context) ->
+    ContentMD5 = cowmachine_req:get_req_header(<<"content-md5">>, Context),
+    decision_test(ContentMD5, undefined, v3b9b, v3b9a, State, Context);
+
+%% "Content-MD5 valid?"
+decision(v3b9a, State, Context) ->
+    {Md5Valid, S1, C1} = controller_call(validate_content_checksum, State, Context),
+    case Md5Valid of
+        {error, Reason} ->
+            error_response(Reason, S1, C1);
+        {halt, Code} ->
+            respond(Code, S1, C1);
+        not_validated ->
+            Checksum = base64:decode(cowmachine_req:get_req_header(<<"content-md5">>, C1)),
+            {Body, C2} = cowmachine_req:req_body(C1),
+            BodyHash = crypto:hash(md5, Body),
+            case BodyHash =:= Checksum of
+                true -> d(v3b9b, S1, C2);
+                _ ->
+                    respond(400, S1, C2)
+            end;
+        false ->
+            respond(400, S1, C1);
+        _ ->
+            d(v3b9b, S1, C1)
+    end;
+
+%% "Malformed?"
+decision(v3b9b, State, Context) ->
     decision_test(controller_call(malformed_request, State, Context), true, 400, v3b8);
+
 %% "Authorized?"
-decision(v3b8, #cmstate{options=Options} = State, Context) ->
+decision(v3b8, #cmstate{ options = Options } = State, Context) ->
     Context1 = case maps:get(on_welformed, Options, undefined) of
                     undefined -> Context;
                     Fun when is_function(Fun) -> Fun(Context)
@@ -194,9 +227,11 @@ decision(v3b8, #cmstate{options=Options} = State, Context) ->
             CtxAuth = cowmachine_req:set_resp_header(<<"www-authenticate">>, AuthHead, C1),
             respond(401, S1, CtxAuth)
     end;
+
 %% "Forbidden?"
 decision(v3b7, State, Context) ->
     decision_test(controller_call(forbidden, State, Context), true, 403, v3b6_upgrade);
+
 %% "Upgrade?"
 decision(v3b6_upgrade, State, Context) ->
     case cowmachine_req:get_req_header(<<"upgrade">>, Context) of
@@ -221,24 +256,29 @@ decision(v3b6_upgrade, State, Context) ->
                     end
             end
     end;
+
 %% "Okay Content-* Headers?"
 decision(v3b6, State, Context) ->
     decision_test(controller_call(valid_content_headers, State, Context), true, v3b5, 501);
+
 %% "Known Content-Type?"
 decision(v3b5, State, Context) ->
     decision_test(controller_call(known_content_type, State, Context), true, v3b4, 415);
+
 %% "Req Entity Too Large?"
 decision(v3b4, State, Context) ->
     decision_test(controller_call(valid_entity_length, State, Context), true, v3b3, 413);
+
 %% "OPTIONS?"
 decision(v3b3, State, Context) ->
-    case cowmachine_req:method(Context) of 
+    case cowmachine_req:method(Context) of
         <<"OPTIONS">> ->
             {Hdrs, S1, C1} = controller_call(options, State, Context),
             respond(200, Hdrs, S1, C1);
         _ ->
             d(v3c3, State, Context)
     end;
+
 %% Accept exists?
 decision(v3c3, State, Context) ->
     case cowmachine_req:get_req_header(<<"accept">>, Context) of
@@ -250,6 +290,7 @@ decision(v3c3, State, Context) ->
         _ ->
             d(v3c4, State, Context)
     end;
+
 %% Acceptable media type available?
 decision(v3c4, State, Context) ->
     {ContentTypesProvided, S1, C1} = controller_call(content_types_provided, State, Context),
@@ -262,23 +303,28 @@ decision(v3c4, State, Context) ->
             CTCtx = cowmachine_req:set_resp_content_type(MType, C1),
             d(v3d4, S1, CTCtx)
     end;
+
 %% Accept-Language exists?
 decision(v3d4, State, Context) ->
     decision_test(cowmachine_req:get_req_header(<<"accept-language">>, Context), undefined, v3e5, v3d5, State, Context);
+
 %% Acceptable Language available? %% WMACH-46 (do this as proper conneg)
 decision(v3d5, State, Context) ->
     decision_test(controller_call(language_available, State, Context), true, v3e5, 406);
+
 %% Accept-Charset exists?
 decision(v3e5, State, Context) ->
     case cowmachine_req:get_req_header(<<"accept-charset">>, Context) of
         undefined -> decision_test(choose_charset(<<"*">>, State, Context), none, 406, v3f6);
         _ -> d(v3e6, State, Context)
     end;
+
 %% Acceptable Charset available?
 decision(v3e6, State, Context) ->
     decision_test(
         choose_charset(cowmachine_req:get_req_header(<<"accept-charset">>, Context), State, Context), 
         none, 406, v3f6);
+
 %% Accept-Encoding exists?
 % (also, set content-type header here, now that charset is chosen)
 decision(v3f6, State, Context) ->
@@ -295,11 +341,13 @@ decision(v3f6, State, Context) ->
                     none, 406, v3g7);
         _ -> d(v3f7, State, C1)
     end;
+
 %% Acceptable encoding available?
 decision(v3f7, State, Context) ->
     decision_test(
             choose_content_encoding(cowmachine_req:get_req_header(<<"accept-encoding">>, Context), State, Context),
             none, 406, v3g7);
+
 %% "Resource exists?"
 decision(v3g7, State, Context) ->
     % this is the first place after all conneg, so set Vary here
@@ -309,34 +357,42 @@ decision(v3g7, State, Context) ->
         _ -> cowmachine_req:set_resp_header(<<"vary">>, [Variances], C1)
     end,
     decision_test(controller_call(resource_exists, S1, VarCtx), true, v3g8, v3h7);
+
 %% "If-Match exists?"
 decision(v3g8, State, Context) ->
     decision_test(cowmachine_req:get_req_header(<<"if-match">>, Context), undefined, v3h10, v3g9, State, Context);
+
 %% "If-Match: * exists"
 decision(v3g9, State, Context) ->
     decision_test(cowmachine_req:get_req_header(<<"if-match">>, Context), <<"*">>, v3h10, v3g11, State, Context);
+
 %% "ETag in If-Match"
 decision(v3g11, State, Context) ->
     ETags = cowmachine_util:split_quoted_strings(cowmachine_req:get_req_header(<<"if-match">>, Context)),
     decision_test_fn(controller_call(generate_etag, State, Context),
                      fun(ETag) -> lists:member(ETag, ETags) end,
                      v3h10, 412);
+
 %% "If-Match: * exists"
 decision(v3h7, State, Context) ->
     decision_test(cowmachine_req:get_req_header(<<"if-match">>, Context), "*", 412, v3i7, State, Context);
+
 %% "If-unmodified-since exists?"
 decision(v3h10, State, Context) ->
     decision_test(cowmachine_req:get_req_header(<<"if-unmodified-since">>, Context), undefined, v3i12, v3h11, State, Context);
+
 %% "I-UM-S is valid date?"
 decision(v3h11, State, Context) ->
     IUMSDate = cowmachine_req:get_req_header(<<"if-unmodified-since">>, Context),
     decision_test(cowmachine_util:convert_request_date(IUMSDate), bad_date, v3i12, v3h12, State, Context);
+
 %% "Last-Modified > I-UM-S?"
 decision(v3h12, State, Context) ->
     ReqDate = cowmachine_req:get_req_header(<<"if-unmodified-since">>, Context),
     ReqErlDate = cowmachine_util:convert_request_date(ReqDate),
     {ResErlDate, S1, C1} = controller_call(last_modified, State, Context),
     decision_test(ResErlDate > ReqErlDate, true, 412, v3i12, S1, C1);
+
 %% "Moved permanently? (apply PUT to different URI)"
 decision(v3i4, State, Context) ->
     {MovedPermanently, S1, C1} = controller_call(moved_permanently, State, Context),
@@ -351,18 +407,23 @@ decision(v3i4, State, Context) ->
         {halt, Code} ->
             respond(Code, S1, C1)
     end;
+
 %% PUT?
 decision(v3i7, State, Context) ->
     decision_test(cowmachine_req:method(Context), <<"PUT">>, v3i4, v3k7, State, Context);
+
 %% "If-none-match exists?"
 decision(v3i12, State, Context) ->
     decision_test(cowmachine_req:get_req_header(<<"if-none-match">>, Context), undefined, v3l13, v3i13, State, Context);
+
 %% "If-None-Match: * exists?"
 decision(v3i13, State, Context) ->
     decision_test(cowmachine_req:get_req_header(<<"if-none-match">>, Context), <<"*">>, v3j18, v3k13, State, Context);
+
 %% GET or HEAD?
 decision(v3j18, State, Context) ->
     decision_test(lists:member(cowmachine_req:method(Context),[<<"GET">>, <<"HEAD">>]), true, 304, 412, State, Context);
+
 %% "Moved permanently?"
 decision(v3k5, State, Context) ->
     {MovedPermanently, S1, C1} = controller_call(moved_permanently, State, Context),
@@ -377,9 +438,11 @@ decision(v3k5, State, Context) ->
         {halt, Code} ->
             respond(Code, S1, C1)
     end;
+
 %% "Previously existed?"
 decision(v3k7, State, Context) ->
     decision_test(controller_call(previously_existed, State, Context), true, v3k5, v3l7);
+
 %% "Etag in if-none-match?"
 decision(v3k13, State, Context) ->
     ETags = cowmachine_util:split_quoted_strings(cowmachine_req:get_req_header(<<"if-none-match">>, Context)),
@@ -389,6 +452,7 @@ decision(v3k13, State, Context) ->
                      %% via v3j18.
                      fun(ETag) -> lists:member(ETag, ETags) end,
                      v3j18, v3l13);
+
 %% "Moved temporarily?"
 decision(v3l5, State, Context) ->
     {MovedTemporarily, S1, C1} = controller_call(moved_temporarily, State, Context),
@@ -403,22 +467,27 @@ decision(v3l5, State, Context) ->
     {halt, Code} ->
         respond(Code, S1, C1)
     end;
+
 %% "POST?"
 decision(v3l7, State, Context) ->
     decision_test(cowmachine_req:method(Context), <<"POST">>, v3m7, 404, State, Context);
+
 %% "IMS exists?"
 decision(v3l13, State, Context) ->
     decision_test(cowmachine_req:get_req_header(<<"if-modified-since">>, Context), undefined, v3m16, v3l14, State, Context);
+
 %% "IMS is valid date?"
 decision(v3l14, State, Context) -> 
     IMSDate = cowmachine_req:get_req_header(<<"if-modified-since">>, Context),
     decision_test(cowmachine_util:convert_request_date(IMSDate), bad_date, v3m16, v3l15, State, Context);
+
 %% "IMS > Now?"
 decision(v3l15, State, Context) ->
     NowDateTime = calendar:universal_time(),
     ReqDate = cowmachine_req:get_req_header(<<"if-modified-since">>, Context),
     ReqErlDate = cowmachine_util:convert_request_date(ReqDate),
     decision_test(ReqErlDate > NowDateTime, true, v3m16, v3l17, State, Context);
+
 %% "Last-Modified > IMS?"
 decision(v3l17, State, Context) ->
     ReqDate = cowmachine_req:get_req_header(<<"if-modified-since">>, Context),    
@@ -426,24 +495,30 @@ decision(v3l17, State, Context) ->
     {ResErlDate, S1, C1} = controller_call(last_modified, State, Context),
     decision_test(ResErlDate =:= undefined orelse ResErlDate > ReqErlDate,
                   true, v3m16, 304, S1, C1);
+
 %% "POST?"
 decision(v3m5, State, Context) ->
     decision_test(cowmachine_req:method(Context), <<"POST">>, v3n5, 410, State, Context);
+
 %% "Server allows POST to missing resource?"
 decision(v3m7, State, Context) ->
     decision_test(controller_call(allow_missing_post, State, Context), true, v3n11, 404);
+
 %% "DELETE?"
 decision(v3m16, State, Context) ->
     decision_test(cowmachine_req:method(Context), <<"DELETE">>, v3m20, v3n16, State, Context);
+
 %% DELETE enacted immediately?
 %% Also where DELETE is forced.
 decision(v3m20, State, Context) ->
     decision_test(controller_call(delete_resource, State, Context), true, v3m20b, 500);
 decision(v3m20b, State, Context) ->
     decision_test(controller_call(delete_completed, State, Context), true, v3o20, 202);
+
 %% "Server allows POST to missing resource?"
 decision(v3n5, State, Context) ->
     decision_test(controller_call(allow_missing_post, State, Context), true, v3n11, 410);
+
 %% "Redirect?"
 decision(v3n11, State, Context) ->
     {PostIsCreate, S1, C1} = controller_call(post_is_create, State, Context),
@@ -509,9 +584,11 @@ decision(v3n11, State, Context) ->
         _ -> 
             {nop, SStage1, CtxStage1}
     end;
+
 %% "POST?"
 decision(v3n16, State, Context) ->
     decision_test(cowmachine_req:method(Context), <<"POST">>, v3n11, v3o16, State, Context);
+
 %% Conflict?
 decision(v3o14, State, Context) ->
     {IsConflict, Rs1, Rd1} = controller_call(is_conflict, State, Context),
@@ -527,9 +604,11 @@ decision(v3o14, State, Context) ->
                 _ -> d(v3p11, RsHelp, RdHelp)
             end
     end;
+
 %% "PUT?"
 decision(v3o16, State, Context) ->
     decision_test(cowmachine_req:method(Context), <<"PUT">>, v3o14, v3o18, State, Context);
+
 %% Multiple representations?
 % (also where body generation for GET and HEAD is done)
 decision(v3o18, State, Context) ->
@@ -582,9 +661,11 @@ decision(v3o18, State, Context) ->
 
 decision(v3o18b, State, Context) ->
     decision_test(controller_call(multiple_choices, State, Context), true, 300, 200);
+
 %% Response includes an entity?
 decision(v3o20, State, Context) ->
     decision_test(cowmachine_req:has_resp_body(Context), true, v3o18, 204, State, Context);
+
 %% Conflict?
 decision(v3p3, State, Context) ->
     {IsConflict, Rs1, Rd1} = controller_call(is_conflict, State, Context),
@@ -644,11 +725,11 @@ is_if_range_ok(Date, _ETag, LM) ->
     ErlDate = cowmachine_util:convert_request_date(Date),
     ErlDate =/= undefined andalso ErlDate >= LM.
 
-   
+
 choose_content_encoding(AccEncHdr, State, Context) ->
     {EncodingsProvided, Rs1, Rd1} = controller_call(content_encodings_provided, State, Context),
     case cowmachine_util:choose_encoding(EncodingsProvided, AccEncHdr) of
-        none -> 
+        none ->
             {none, Rs1, Rd1};
         ChosenEnc ->
             RdEnc = case ChosenEnc of
@@ -689,7 +770,7 @@ choose_charset(AccCharHdr, State, Context) ->
         CL ->
             CSets = [maybe_old_tuple_value(CSet) || CSet <- CL],
             case cowmachine_util:choose_charset(CSets, AccCharHdr) of
-                none -> 
+                none ->
                     {none, Rs1, Rd1};
                 Charset ->
                     RdCSet = cowmachine_req:set_resp_chosen_charset(Charset, Rd1),
@@ -743,7 +824,7 @@ variances(State, Context) ->
     end,
     {Variances, Rs4, Rd4} = controller_call(variances, Rs3, Rd3),
     {Accept ++ AcceptEncoding ++ AcceptCharset ++ Variances, Rs4, Rd4}.
-    
+
 
 contains_token(Token, HeaderString) ->
     Tokens = lists:map(fun (T) ->
@@ -751,3 +832,4 @@ contains_token(Token, HeaderString) ->
                        end,
                        binary:split(HeaderString, <<",">>, [global])),
     lists:member(Token, Tokens).
+
