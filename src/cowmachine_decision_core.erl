@@ -532,14 +532,14 @@ decision(v3n11, State, Context) ->
             {CreatePath, S2, C2} = controller_call(create_path, S1, C1),
             case CreatePath of
                 NewPath when is_binary(NewPath) ->
-                    {BaseUri0, S3, C3} = controller_call(base_uri, S2, C2),
                     NewPath1 = case NewPath of
                                     <<$/, Path/binary>> -> Path;
                                     _ -> NewPath
                                end,
-                    PathCtx = cowmachine_req:set_disp_path(<<$/, NewPath1/binary>>, C3),
-                    LocCtx = case cowmachine_req:get_resp_header(<<"location">>, PathCtx) of
+                    PathCtx = cowmachine_req:set_disp_path(<<$/, NewPath1/binary>>, C2),
+                    {LocS, LocCtx} = case cowmachine_req:get_resp_header(<<"location">>, PathCtx) of
                         undefined ->
+                            {BaseUri0, S3, C3} = controller_call(base_uri, S2, PathCtx),
                             BaseUri = case BaseUri0 of
                                             undefined -> cowmachine_req:base_uri(C3);
                                             _ -> BaseUri0
@@ -548,11 +548,11 @@ decision(v3n11, State, Context) ->
                                     $/ -> <<BaseUri/binary, NewPath1/binary>>;
                                     _ -> <<BaseUri/binary, $/, NewPath1/binary>>
                                   end,
-                            cowmachine_req:set_resp_header(<<"location">>, Loc, PathCtx);
+                            {S3, cowmachine_req:set_resp_header(<<"location">>, Loc, PathCtx)};
                         _ ->
-                            PathCtx
+                            {S2, PathCtx}
                     end,
-                    {Res, S4, C4} = accept_helper(S3, LocCtx),
+                    {Res, S4, C4} = accept_helper(LocS, LocCtx),
                     case Res of
                         {halt, Code} -> respond(Code, S4, C4);
                         {error, _,_} -> error_response(Res, S4, C4);
@@ -560,16 +560,17 @@ decision(v3n11, State, Context) ->
                         _ -> {stage1_ok, S4, C4}
                     end;
                 undefined ->
-                    error_response("post_is_create w/o create_path", S2, C2);
+                    error_response("post_is_create without create_path", S2, C2);
                 _ ->
-                    error_response("create_path not a string", S2, C2)
+                    error_response("create_path not a binary string", S2, C2)
             end;
-        _ ->
+        false ->
             {ProcessPost, S2, C2} = accept_helper(S1, C1),
             case ProcessPost of
                 true -> {stage1_ok, S2, C2};
                 {halt, Code} -> respond(Code, S2, C2);
-                Err -> error_response(Err, S2, C2)
+                {error, _} = Err -> error_response(Err, S2, C2);
+                {error, _, _} = Err -> error_response(Err, S2, C2)
             end
     end,
     case Stage1 of
