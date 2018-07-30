@@ -98,16 +98,17 @@ send_response_bodyfun({device, IO}, Code, Parts, Req) ->
     Length = iodevice_size(IO),
     send_response_bodyfun({device, Length, IO}, Code, Parts, Req);
 send_response_bodyfun({device, Length, IO}, Code, all, Req) ->
-    Writer = fun() -> 
-                send_device_body(Req, Length, IO),
-                _ = file:close(IO)
+    Writer = fun(FunReq) ->
+                send_device_body(FunReq, Length, IO),
+                _ = file:close(IO),
+                FunReq
              end,
     start_response_stream(Code, Length, Writer, Req);
 send_response_bodyfun({device, _Length, IO}, Code, Parts, Req) ->
-    Writer = fun() -> 
-                Bytes = send_device_body_parts(Req, Parts, IO),
+    Writer = fun(FunReq) ->
+                FunReq1 = send_device_body_parts(FunReq, Parts, IO),
                 _ = file:close(IO),
-                Bytes
+                FunReq1
              end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({file, Filename}, Code, Parts, Req) ->
@@ -120,19 +121,19 @@ send_response_bodyfun({file, _Length, Filename}, Code, Parts, Req) ->
     Writer = fun(FunReq) -> send_file_body_parts(FunReq, Parts, Filename) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({stream, StreamFun}, Code, all, Req) ->
-    Writer = fun(FunReq) -> send_stream_body(FunReq, StreamFun) end,
+    Writer = fun(FunReq) -> send_stream_body(StreamFun, FunReq) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({stream, Size, Fun}, Code, all, Req) ->
-    Writer = fun(FunReq) -> send_stream_body(FunReq, Fun(0, Size-1)) end,
+    Writer = fun(FunReq) -> send_stream_body(Fun(0, Size-1), FunReq) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({writer, WriterFun}, Code, all, Req) ->
-    Writer = fun(FunReq) -> send_writer_body(FunReq, WriterFun) end,
+    Writer = fun(FunReq) -> send_writer_body(WriterFun, FunReq) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun(Body, Code, all, Req) ->
     Length = iolist_size(Body),
     start_response_stream(Code, Length, Body, Req);
 send_response_bodyfun(Body, Code, Parts, Req) ->
-    Writer = fun() -> send_parts(Req, Body, Parts) end,
+    Writer = fun(FunReq) -> send_parts(FunReq, Body, Parts) end,
     start_response_stream(Code, undefined, Writer, Req).
 
 
@@ -162,12 +163,12 @@ response_headers(Code, Length, Req) ->
     Hdrs1 = case Code of
         304 ->
             Hdrs;
-        _ when is_integer(Length) -> 
+        _ when is_integer(Length) ->
             Hdrs#{<<"content-length">> => integer_to_binary(Length)};
         _ ->
             Hdrs
     end,
-    Hdrs1#{ 
+    Hdrs1#{
         <<"server">> => server_header(),
         <<"date">> => cowboy_clock:rfc1123()
     }.
@@ -175,23 +176,23 @@ response_headers(Code, Length, Req) ->
 send_stream_body(Req, {<<>>, done}) ->
     % @TODO: in cowboy this give a wrong termination with two 0 size chunks
     send_chunk(Req, <<>>, fin);
-send_stream_body(Req, {Data, done}) ->
-    send_chunk(Req, Data, fin);
 send_stream_body(Req, {{file, Filename}, Next}) ->
     Length = filelib:file_size(Filename),
     send_stream_body(Req, {{file, Length, Filename}, Next});
 send_stream_body(Req, {{file, 0, _Filename}, Next}) ->
     send_stream_body(Req, {<<>>, Next});
 send_stream_body(Req, {{file, Size, Filename}, Next}) ->
-    send_file_body(Req, Size, Filename, nofin),
-    send_stream_body(Req, {<<>>, Next});
+    Req1 = send_file_body(Req, Size, Filename, nofin),
+    send_stream_body(Req1, {<<>>, Next});
+send_stream_body(Req, {Data, done}) ->
+    send_chunk(Req, Data, fin);
 send_stream_body(Req, {<<>>, Next}) ->
     send_stream_body(Req, Next());
 send_stream_body(Req, {[], Next}) ->
     send_stream_body(Req, Next());
 send_stream_body(Req, {Data, Next}) ->
-    send_chunk(Req, Data, nofin),
-    send_stream_body(Req, Next()).
+    Req1 = send_chunk(Req, Data, nofin),
+    send_stream_body(Req1, Next()).
 
 send_device_body(Req, Length, IO) ->
     send_file_body_loop(Req, 0, Length, IO, fin).
@@ -242,8 +243,8 @@ send_parts(Req, Bin, {Parts, Size, Boundary, ContentType}) ->
     send_chunk(Req, end_boundary(Boundary), fin).
 
 
-send_file_body_loop(_Req, Offset, Size, _Device, _FinNoFin) when Offset =:= Size ->
-    ok;
+send_file_body_loop(Req, Offset, Size, _Device, _FinNoFin) when Offset =:= Size ->
+    Req;
 send_file_body_loop(Req, Offset, Size, Device, FinNoFin) when Size - Offset =< ?FILE_CHUNK_LENGTH ->
     {ok, Data} = file:read(Device, Size - Offset),
     send_chunk(Req, Data, FinNoFin);
@@ -252,18 +253,22 @@ send_file_body_loop(Req, Offset, Size, Device, FinNoFin) ->
     send_chunk(Req, Data, nofin),
     send_file_body_loop(Req, Offset+?FILE_CHUNK_LENGTH, Size, Device, FinNoFin).
 
-send_writer_body(Req, BodyFun) ->
-    BodyFun(fun(Data, false) ->
-                    send_chunk(Req, Data, nofin);
-               (Data, true) ->
-                    send_chunk(Req, Data, fin)
-            end).
+send_writer_body(BodyFun, Req) ->
+    BodyFun(fun(Data, false, ReqW) ->
+                    send_chunk(ReqW, Data, nofin);
+               (Data, true, ReqW) ->
+                    send_chunk(ReqW, Data, fin)
+            end,
+            Req).
 
-send_chunk(_Req, <<>>, nofin) -> ok;
-send_chunk(_Req, [], nofin) -> ok;
+send_chunk(Req, <<>>, nofin) ->
+    Req;
+send_chunk(Req, [], nofin) ->
+    Req;
 send_chunk(Req, Data, FinNoFin) ->
     Data1 = iolist_to_binary(Data),
-    ok = cowboy_req:stream_body(Data1, FinNoFin, Req).
+    ok = cowboy_req:stream_body(Data1, FinNoFin, Req),
+    Req.
 
 -spec get_range(cowboy_req:req()) -> {undefined|[{integer()|none,integer()|none}], cowboy_req:req()}.
 get_range(Req) ->

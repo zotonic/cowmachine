@@ -86,7 +86,7 @@
     resp_body/1,
     has_resp_body/1,
 
-    do_redirect/2,
+    set_resp_redirect/2,
     resp_redirect/1,
 
     req_body/1,
@@ -108,19 +108,38 @@
 %%      is at position 2.
 -type context() :: cowboy_req:req() | tuple().
 
--export_type([context/0]).
+%% Used to stop a request with a specific HTTP status code
+-type halt() :: {error, term()} | {halt, 200..599}.
 
-
+%% Response body, can be data, a file, device or streaming functions.
 -type resp_body() :: iolist()
-                   | {device, pos_integer(), file:io_device()}
+                   | {device, Size::pos_integer(), file:io_device()}
                    | {device, file:io_device()}
-                   | {file, pos_integer(), filename:filename()}
+                   | {file, Size::pos_integer(), filename:filename()}
                    | {file, filename:filename()}
-                   | {stream, function()}
-                   | {stream, pos_integer(), function()}
-                   | {writer, function()}.
+                   | {stream, streamfun()}
+                   | {stream, Size::pos_integer(), streamfun()}
+                   | {writer, writerfun()}.
 
--export_type([resp_body/0]).
+%% Streaming function, repeatedly called to fetch the next chunk
+-type streamfun() :: fun( () -> {streamdata(), streamfun_next()} ).
+-type streamfun_next() :: streamfun() | done.
+-type streamdata() :: iolist()
+                    | {file, pos_integer(), filename:filename()}
+                    | {file, filename:filename()}.
+
+%% Writer function, calls output function till finished
+-type writerfun() :: fun( (outputfun(), cowboy_req:req()) -> cowboy_req:req() ).
+-type outputfun() :: fun( (iolist(), IsFinal::boolean(), cowboy_req:req()) -> cowboy_req:req() ).
+
+-export_type([
+    context/0,
+    halt/0,
+    resp_body/0,
+    streamfun/0,
+    streamfun_next/0,
+    streamdata/0
+]).
 
 %% @doc Set some intial metadata in the cowboy req
 -spec init_req(cowboy_req:req(), cowboy_middleware:env()) -> cowboy_req:req().
@@ -419,10 +438,14 @@ encode_content_1(<<"identity">>, Content) -> Content.
 
 
 %% @doc Set the 'redirect' flag, used during POST processing to check if a 303 should be returned.
--spec do_redirect(boolean(), context()) -> context().
-do_redirect(IsRedirect, Context) when is_boolean(IsRedirect) ->
+-spec set_resp_redirect(boolean() | binary(), context()) -> context().
+set_resp_redirect(Location, Context) when is_binary(Location) ->
     Req = req(Context),
-    set_req(Req#{cowmachine_resp_redirect => IsRedirect}, Context).
+    Req1 = set_resp_header(<<"location">>, Location, Req),
+    set_req(Req1#{ cowmachine_resp_redirect => true }, Context);
+set_resp_redirect(IsRedirect, Context) when is_boolean(IsRedirect) ->
+    Req = req(Context),
+    set_req(Req#{ cowmachine_resp_redirect => IsRedirect }, Context).
 
 %% @doc Return the 'redirect' flag, used during POST processing to check if a 303 should be returned.
 -spec resp_redirect(context()) -> boolean().
