@@ -112,7 +112,7 @@
 -type halt() :: {error, term()} | {halt, 200..599}.
 
 %% Response body, can be data, a file, device or streaming functions.
--type resp_body() :: iolist()
+-type resp_body() :: iodata()
                    | {device, Size::pos_integer(), file:io_device()}
                    | {device, file:io_device()}
                    | {file, Size::pos_integer(), filename:filename()}
@@ -124,13 +124,13 @@
 %% Streaming function, repeatedly called to fetch the next chunk
 -type streamfun() :: fun( () -> {streamdata(), streamfun_next()} ).
 -type streamfun_next() :: streamfun() | done.
--type streamdata() :: iolist()
+-type streamdata() :: iodata()
                     | {file, pos_integer(), filename:filename()}
                     | {file, filename:filename()}.
 
 %% Writer function, calls output function till finished
 -type writerfun() :: fun( (outputfun(), cowboy_req:req()) -> cowboy_req:req() ).
--type outputfun() :: fun( (iolist(), IsFinal::boolean(), cowboy_req:req()) -> cowboy_req:req() ).
+-type outputfun() :: fun( (iodata(), IsFinal::boolean(), cowboy_req:req()) -> cowboy_req:req() ).
 
 -export_type([
     context/0,
@@ -294,7 +294,7 @@ path_info(Context) ->
 
 %% @doc Fetch a request header, the header must be a lowercase binary.
 -spec get_req_header(binary(), context()) -> binary() | undefined.
-get_req_header(H, Context) ->
+get_req_header(H, Context) when is_binary(H) ->
     cowboy_req:header(H, req(Context)).
 
 %% @doc Fetch all request headers.
@@ -304,9 +304,9 @@ get_req_headers(Context) ->
 
 %% @doc Set the content type of the response
 -spec set_resp_content_type(binary(), context()) -> context().
-set_resp_content_type(CT, Context) ->
+set_resp_content_type(CT, Context) when is_binary(CT) ->
     Req = req(Context),
-    set_req(Req#{cowmachine_resp_content_type => CT}, Context).
+    set_req(Req#{ cowmachine_resp_content_type => CT }, Context).
 
 %% @doc Fetch the content type of the response
 -spec resp_content_type(context()) -> binary().
@@ -329,10 +329,10 @@ is_range_ok(Context) ->
 %% The header must be a lowercased binary. If the value is a list of binaries then
 %% they are joined with a comma as separator.
 -spec set_resp_header(binary(), binary()|list(binary())|string(), context()) -> context().
-set_resp_header(Header, [V|Rs], Context) when is_binary(V) ->
+set_resp_header(Header, [V|Rs], Context) when is_binary(Header), is_binary(V) ->
     V1 = iolist_to_binary([V, [ [", ", R] || R <- Rs] ]),
     set_resp_header(Header, V1, Context);
-set_resp_header(Header, Value, Context) ->
+set_resp_header(Header, Value, Context) when is_binary(Header) ->
     Req = cowboy_req:set_resp_header(Header, z_convert:to_binary(Value), req(Context)),
     set_req(Req, Context).
 
@@ -346,7 +346,7 @@ set_resp_headers([{Header, Value}|Hs], Context) ->
 
 %% @doc Fetch the response header, undefined if not set.
 -spec get_resp_header(binary(), context()) -> binary() | undefined.
-get_resp_header(Header, Context) ->
+get_resp_header(Header, Context) when is_binary(Header) ->
     Hs = maps:get(resp_headers, req(Context), #{}),
     maps:get(Header, Hs, undefined).
 
@@ -357,13 +357,13 @@ get_resp_headers(Context) ->
 
 %% @doc Remove the response header from the list for response headers.
 -spec remove_resp_header(binary(), context()) -> context().
-remove_resp_header(Header, Context) ->
+remove_resp_header(Header, Context) when is_binary(Header) ->
     Req = cowboy_req:delete_resp_header(Header, req(Context)),
     set_req(Req, Context).
 
 %% @doc Add a cookie to the response cookies
 -spec set_resp_cookie(binary(), binary(), list(), context()) -> context().
-set_resp_cookie(Key, Value, Options, Context) ->
+set_resp_cookie(Key, Value, Options, Context) when is_binary(Key), is_binary(Value) ->
     Options1 = [ {K,V} || {K,V} <- Options, V =/= undefined ],
     Req = cowboy_req:set_resp_cookie(Key, Value, req(Context), maps:from_list(Options1)),
     set_req(Req, Context).
@@ -375,7 +375,7 @@ get_resp_cookies(Context) ->
 
 %% @doc Fetch the value of a cookie.
 -spec get_cookie_value(binary(), context()) -> binary() | undefined.
-get_cookie_value(Name, Context) ->
+get_cookie_value(Name, Context) when is_binary(Name) ->
     Cookies = maps:get(cowmachine_cookies, req(Context)),
     proplists:get_value(Name, Cookies).
 
@@ -429,7 +429,7 @@ resp_content_encoding(Context) ->
     maps:get(cowmachine_resp_content_encoding, req(Context)).
 
 %% @doc Encode the content according to the selected content encoding
--spec encode_content(iolist(), context()) -> iolist().
+-spec encode_content(iodata(), context()) -> iolist().
 encode_content(Content, Context) ->
     encode_content_1(resp_content_encoding(Context), Content).
 

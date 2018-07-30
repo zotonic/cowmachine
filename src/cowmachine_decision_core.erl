@@ -64,6 +64,11 @@ is_cacheable(generate_etag) -> true;
 is_cacheable(_) -> false.
 
 
+controller_call_process(ContentType, State, Context) ->
+    {T, Context1} = cowmachine_controller:do_process(ContentType, State, Context),
+    {T, State, Context1}.
+
+
 d(DecisionID, State, Context) ->
     % webmachine_controller:log_d(Rs, DecisionID),
     decision(DecisionID, State, Context).
@@ -283,25 +288,25 @@ decision(v3b3, State, Context) ->
 decision(v3c3, State, Context) ->
     case cowmachine_req:get_req_header(<<"accept">>, Context) of
         undefined ->
+            % No accept header, select the first content-type provided
             {ContentTypes, S1, C1} = controller_call(content_types_provided, State, Context),
-            {Type, _Fun} = hd(ContentTypes),
-            CTCtx = cowmachine_req:set_resp_content_type(Type, C1),
-            d(v3d4, S1, CTCtx);
+            MType = hd(ContentTypes),
+            C2 = cowmachine_req:set_resp_content_type(MType, C1),
+            d(v3d4, S1, C2);
         _ ->
             d(v3c4, State, Context)
     end;
 
-%% Acceptable media type available?
+%% Acceptable media type available? (check against Accept header)
 decision(v3c4, State, Context) ->
     {ContentTypesProvided, S1, C1} = controller_call(content_types_provided, State, Context),
-    PTypes = [Type || {Type,_Fun} <- ContentTypesProvided],
     AcceptHdr = cowmachine_req:get_req_header(<<"accept">>, C1),
-    case cowmachine_util:choose_media_type(PTypes, AcceptHdr) of
+    case cowmachine_util:choose_media_type_provided(ContentTypesProvided, AcceptHdr) of
         none ->
             respond(406, S1, C1);
         MType ->
-            CTCtx = cowmachine_req:set_resp_content_type(MType, C1),
-            d(v3d4, S1, CTCtx)
+            C2 = cowmachine_req:set_resp_content_type(MType, C1),
+            d(v3d4, S1, C2)
     end;
 
 %% Accept-Language exists?
@@ -322,7 +327,7 @@ decision(v3e5, State, Context) ->
 %% Acceptable Charset available?
 decision(v3e6, State, Context) ->
     decision_test(
-        choose_charset(cowmachine_req:get_req_header(<<"accept-charset">>, Context), State, Context), 
+        choose_charset(cowmachine_req:get_req_header(<<"accept-charset">>, Context), State, Context),
         none, 406, v3f6);
 
 %% Accept-Encoding exists?
@@ -335,9 +340,9 @@ decision(v3f6, State, Context) ->
            end,
     C1 = cowmachine_req:set_resp_header(<<"content-type">>, CSet, Context),
     case cowmachine_req:get_req_header(<<"accept-encoding">>, C1) of
-        undefined -> 
+        undefined ->
             decision_test(
-                    choose_content_encoding(<<"identity;q=1.0,*;q=0.5">>, State, C1), 
+                    choose_content_encoding(<<"identity;q=1.0,*;q=0.5">>, State, C1),
                     none, 406, v3g7);
         _ -> d(v3f7, State, C1)
     end;
@@ -549,19 +554,18 @@ decision(v3n11, State, Context) ->
                     end,
                     {Res, S4, C4} = accept_helper(S3, LocCtx),
                     case Res of
-                        {respond, Code} -> respond(Code, S4, C4);
                         {halt, Code} -> respond(Code, S4, C4);
                         {error, _,_} -> error_response(Res, S4, C4);
                         {error, _} -> error_response(Res, S4, C4);
                         _ -> {stage1_ok, S4, C4}
                     end;
-                undefined -> 
+                undefined ->
                     error_response("post_is_create w/o create_path", S2, C2);
                 _ ->
                     error_response("create_path not a string", S2, C2)
             end;
         _ ->
-            {ProcessPost, S2, C2} = controller_call(process_post, S1, C1),
+            {ProcessPost, S2, C2} = accept_helper(S1, C1),
             case ProcessPost of
                 true -> {stage1_ok, S2, C2};
                 {halt, Code} -> respond(Code, S2, C2);
@@ -574,14 +578,14 @@ decision(v3n11, State, Context) ->
                 true ->
                     case cowmachine_req:get_resp_header(<<"location">>, CtxStage1) of
                         undefined ->
-                            respond(500, "Response had do_redirect but no Location", SStage1, CtxStage1);
+                            respond(500, "Response had set_resp_redirect but no Location header", SStage1, CtxStage1);
                         _ ->
                             respond(303, SStage1, CtxStage1)
                     end;
                 false ->
                     d(v3p11, SStage1, CtxStage1)
             end;
-        _ -> 
+        _ ->
             {nop, SStage1, CtxStage1}
     end;
 
@@ -589,19 +593,18 @@ decision(v3n11, State, Context) ->
 decision(v3n16, State, Context) ->
     decision_test(cowmachine_req:method(Context), <<"POST">>, v3n11, v3o16, State, Context);
 
-%% Conflict?
+%% Conflict? -- Only with PUT
 decision(v3o14, State, Context) ->
-    {IsConflict, Rs1, Rd1} = controller_call(is_conflict, State, Context),
+    {IsConflict, S1, C1} = controller_call(is_conflict, State, Context),
     case IsConflict of
-        true -> respond(409, Rs1, Rd1);
-        _ -> 
-            {Res, RsHelp, RdHelp} = accept_helper(Rs1, Rd1),
+        true -> respond(409, S1, C1);
+        _ ->
+            {Res, SHelp, CHelp} = accept_helper(S1, C1),
             case Res of
-                {respond, Code} -> respond(Code, RsHelp, RdHelp);
-                {halt, Code} -> respond(Code, RsHelp, RdHelp);
-                {error, _,_} -> error_response(Res, RsHelp, RdHelp);
-                {error, _} -> error_response(Res, RsHelp, RdHelp);
-                _ -> d(v3p11, RsHelp, RdHelp)
+                {halt, Code} -> respond(Code, SHelp, CHelp);
+                {error, _, _} -> error_response(Res, SHelp, CHelp);
+                {error, _} -> error_response(Res, SHelp, CHelp);
+                _ -> d(v3p11, SHelp, CHelp)
             end
     end;
 
@@ -612,51 +615,25 @@ decision(v3o16, State, Context) ->
 %% Multiple representations?
 % (also where body generation for GET and HEAD is done)
 decision(v3o18, State, Context) ->
-    BuildBody = case cowmachine_req:method(Context) of
-        <<"GET">> -> true;
-        <<"HEAD">> -> true;
-        _ -> false
-    end,
-    {FinalBody, RsBody, RdBody} = case BuildBody of
+    {ProcessResult, SBody, CBody} = case is_GET_HEAD(Context) of
         true ->
-            {Etag, RsEtag, RdEtag0} = controller_call(generate_etag, State, Context),
-            RdEtag = case Etag of
-                undefined -> RdEtag0;
-                ETag -> cowmachine_req:set_resp_header(<<"etag">>, cowmachine_util:quoted_string(ETag), RdEtag0)
-            end,
-
-            {LastModified, RsLM, RdLM0} = controller_call(last_modified, RsEtag, RdEtag),
-            RdLM = case LastModified of
-                undefined -> RdLM0;
-                LM -> cowmachine_req:set_resp_header(<<"last-modified">>,
-                            z_convert:to_binary(httpd_util:rfc1123_date(calendar:universal_time_to_local_time(LM))),
-                            RdLM0)
-            end,
-
-            {Expires, RsExp, RdExp0} = controller_call(expires, RsLM, RdLM),
-            RdExp = case Expires of
-                undefined -> RdExp0;
-                Exp -> cowmachine_req:set_resp_header(<<"expires">>,
-                            z_convert:to_binary(httpd_util:rfc1123_date(calendar:universal_time_to_local_time(Exp))),
-                            RdExp0)
-            end,
-
-            RdIfRange = check_if_range(Etag, LastModified, RdExp),
-
-            CT = cowmachine_req:resp_content_type(RdIfRange),
-            {ContentTypesProvided, RsCT, RdCT} = controller_call(content_types_provided, RsExp, RdIfRange),
-            F = hd([Fun || {Type,Fun} <- ContentTypesProvided, CT =:= Type]),
-            controller_call(F, RsCT, RdCT);
-        false -> 
-            {nop, State, Context}
+            {S1, C1} = etag_etc_helper(State, Context),
+            process_helper(undefined, S1, C1);
+        false ->
+            % If a response body was set then also set etag, modified, etc.
+            case cowmachine_req:has_resp_body(Context) of
+                true ->
+                    {S1, C1} = etag_etc_helper(State, Context),
+                    {nop, S1, C1};
+                false ->
+                    {nop, State, Context}
+            end
     end,
-    case FinalBody of
-        {error, _} -> error_response(FinalBody, RsBody, RdBody);
-        {error, _,_} -> error_response(FinalBody, RsBody, RdBody);
-        {halt, Code} -> respond(Code, RsBody, RdBody);
-        nop -> d(v3o18b, RsBody, RdBody);
-        _ ->
-            d(v3o18b, RsBody, cowmachine_req:set_resp_body(FinalBody, RdBody))
+    case ProcessResult of
+        {error, _} -> error_response(ProcessResult, SBody, CBody);
+        {error, _,_} -> error_response(ProcessResult, SBody, CBody);
+        {halt, Code} -> respond(Code, SBody, CBody);
+        _ -> d(v3o18b, SBody, CBody)
     end;
 
 decision(v3o18b, State, Context) ->
@@ -668,17 +645,16 @@ decision(v3o20, State, Context) ->
 
 %% Conflict?
 decision(v3p3, State, Context) ->
-    {IsConflict, Rs1, Rd1} = controller_call(is_conflict, State, Context),
+    {IsConflict, S1, C1} = controller_call(is_conflict, State, Context),
     case IsConflict of
-        true -> respond(409, Rs1, Rd1);
-        _ -> 
-            {Res, RsHelp, RdHelp} = accept_helper(Rs1, Rd1),
+        true -> respond(409, S1, C1);
+        _ ->
+            {Res, SHelp, CHelp} = accept_helper(S1, C1),
             case Res of
-                {respond, Code} -> respond(Code, RsHelp, RdHelp);
-                {halt, Code} -> respond(Code, RsHelp, RdHelp);
-                {error, _,_} -> error_response(Res, RsHelp, RdHelp);
-                {error, _} -> error_response(Res, RsHelp, RdHelp);
-                _ -> d(v3p11, RsHelp, RdHelp)
+                {halt, Code} -> respond(Code, SHelp, CHelp);
+                {error, _, _} -> error_response(Res, SHelp, CHelp);
+                {error, _} -> error_response(Res, SHelp, CHelp);
+                _ -> d(v3p11, SHelp, CHelp)
             end
     end;
 
@@ -689,21 +665,70 @@ decision(v3p11, State, Context) ->
         _ -> respond(201, State, Context)
     end.
 
-accept_helper(Rs, Rd) ->
-    CT = case cowmachine_req:get_req_header(<<"content-type">>, Rd) of
-             undefined -> <<"application/octet-stream">>;
-             Other -> Other
-         end,
-    {MT, MParams} = cowmachine_util:media_type_to_detail(CT),
-    {ok, RdMParams} = cowmachine_req:set_metadata(mediaparams, MParams, Rd),
-    {ContentTypesAccepted, Rs1, Rd1} = controller_call(content_types_accepted, Rs, RdMParams),
-    case [Fun || {Type,Fun} <- ContentTypesAccepted, MT =:= Type] of
-        [] -> 
-            {{respond, 415}, Rs1, Rd1};
-        AcceptedContentList ->
-            F = hd(AcceptedContentList),
-            controller_call(F, Rs1, Rd1)
+
+%% Check if method is get or head, they have body generation on last stage.
+is_GET_HEAD(Context) ->
+    case cowmachine_req:method(Context) of
+        <<"GET">> -> true;
+        <<"HEAD">> -> true;
+        _ -> false
     end.
+
+%% Check if the request content-type is acceptable - if acceptable then also call the
+%% controller's process function.
+accept_helper(State, Context) ->
+     {M1, M2, MParams} = CTParsed = case cowmachine_req:get_req_header(<<"content-type">>, Context) of
+         undefined ->
+            {<<"application">>, <<"octet-stream">>, []};
+         CTHeader ->
+            cow_http_hd:parse_content_type(CTHeader)
+     end,
+    {ok, RdMParams} = cowmachine_req:set_metadata(mediaparams, MParams, Context),
+    {ContentTypesAccepted, State1, Context1} = controller_call(content_types_accepted, State, RdMParams),
+    case cowmachine_util:is_media_type_accepted(ContentTypesAccepted, CTParsed) of
+        false ->
+            {{halt, 415}, State1, Context1};
+        true ->
+            process_helper(<<M1/binary, $/, M2/binary>>, State1, Context1)
+    end.
+
+process_helper(ContentType, State, Context) ->
+    {Res, S2, C2} = Result = controller_call_process(ContentType, State, Context),
+    case Res of
+        {halt, _} -> Result;
+        {error, _, _} -> Result;
+        {error, _} -> Result;
+        true -> Result;
+        RespBody ->
+            C3 = cowmachine_req:set_resp_body(RespBody, C2),
+            {body, S2, C3}
+    end.
+
+etag_etc_helper(State, Context) ->
+    {Etag, SEtag, CEtag0} = controller_call(generate_etag, State, Context),
+    CEtag = case Etag of
+        undefined -> CEtag0;
+        ETag -> cowmachine_req:set_resp_header(<<"etag">>, cowmachine_util:quoted_string(ETag), CEtag0)
+    end,
+
+    {LastModified, SLM, CLM0} = controller_call(last_modified, SEtag, CEtag),
+    CLM = case LastModified of
+        undefined -> CLM0;
+        LM -> cowmachine_req:set_resp_header(<<"last-modified">>,
+                    z_convert:to_binary(httpd_util:rfc1123_date(calendar:universal_time_to_local_time(LM))),
+                    CLM0)
+    end,
+
+    {Expires, SExp, CExp0} = controller_call(expires, SLM, CLM),
+    CExp = case Expires of
+        undefined -> CExp0;
+        Exp -> cowmachine_req:set_resp_header(<<"expires">>,
+                    z_convert:to_binary(httpd_util:rfc1123_date(calendar:universal_time_to_local_time(Exp))),
+                    CExp0)
+    end,
+    CIfRange = check_if_range(Etag, LastModified, CExp),
+    {SExp, CIfRange}.
+
 
 % Only called for 'GET' and 'HEAD' - check if 206 result is allowed
 check_if_range(Etag, LastModified, Context) ->

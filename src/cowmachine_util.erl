@@ -20,14 +20,11 @@
 
 -export([parse_qs/1]).
 -export([convert_request_date/1]).
--export([choose_media_type/2]).
+-export([choose_media_type_provided/2]).
+-export([is_media_type_accepted/2]).
 -export([choose_charset/2]).
 -export([choose_encoding/2]).
 -export([parse_header/1]).
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
 
 
 %% @doc Parse the HTTP date (IMF-fixdate, rfc850, asctime).
@@ -39,6 +36,7 @@ convert_request_date(Date) ->
         error:_ -> bad_date
     end.
 
+% Used when matching content_types_provided against Accept header
 % Return the Content-Type we will serve for a request.
 % If there is no acceptable/available match, return the atom 'none'.
 % AcceptHead is the value of the request's Accept header
@@ -48,18 +46,27 @@ convert_request_date(Date) ->
 %   or two binaries e.g. {<<"text">>, <<"html">>}
 %   or two binaries and parameters e.g. -- {<<"text">>,<<"html">>,[{<<"level">>,<<"1">>}]}
 % (the plain string case with no parameters is much more common)
--spec choose_media_type(list(), binary()) -> binary() | none.
-choose_media_type(Provided, AcceptHead) ->
+-spec choose_media_type_provided( list(), binary() ) -> binary() | none.
+choose_media_type_provided(Provided, AcceptHead) when is_list(Provided), is_binary(AcceptHead) ->
     Requested = accept_header_to_media_types(AcceptHead),
     Prov1 = normalize_provided(Provided),
-    choose_media_type1(Prov1, Requested).
+    case choose_media_type1(Prov1, Requested) of
+        none -> none;
+        {CT_T1,CT_T2,CT_P} -> format_content_type(CT_T1,CT_T2,CT_P)
+    end.
+
+%% @doc Used when matching content_types_accepted against Content-Type header
+-spec is_media_type_accepted( list(), cow_http_hd:media_type() ) -> binary() | none.
+is_media_type_accepted(Acceptable, ContentType) when is_tuple(ContentType), is_list(Acceptable) ->
+    Acceptable1 = normalize_provided(Acceptable),
+    choose_media_type1(ContentType, Acceptable1) =/= none.
 
 choose_media_type1(_Provided,[]) ->
     none;
 choose_media_type1(Provided,[H|T]) ->
     case media_match(H, Provided) of
         none -> choose_media_type1(Provided, T);
-        {CT_T1,CT_T2,CT_P} -> format_content_type(CT_T1,CT_T2,CT_P)
+        CT -> CT 
     end.
 
 % Return the first matching content type or the atom 'none'
@@ -103,11 +110,10 @@ normalize_provided(Provided) ->
     [ normalize_provided1(X) || X <- Provided ].
 
 normalize_provided1(Type) when is_binary(Type) ->
-    [Type1,Type2] = binary:split(Type, <<"/">>),
-    {Type1, Type2, []};
+    cow_http_hd:parse_content_type(Type);
 normalize_provided1({Type,Params}) when is_binary(Type), is_list(Params) ->
-    [Type1,Type2] = binary:split(Type, <<"/">>),
-    {Type1, Type2, Params};
+    {T1, T2, _} = cow_http_hd:parse_content_type(Type),
+    {T1, T2, Params};
 normalize_provided1({Type1,Type2}) when is_binary(Type1), is_binary(Type2) ->
     {Type1, Type2, []};
 normalize_provided1({Type1,Type2,Params}) when is_binary(Type1), is_binary(Type2), is_list(Params) ->
@@ -196,7 +202,7 @@ do_choose(Default, DefaultOkay, AnyOkay, Choices, [{Acc,_Prio}|AccRest]) ->
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 %%
 -spec parse_qs(binary()) -> list({binary(),binary()}).
-parse_qs(<<>>) -> 
+parse_qs(<<>>) ->
     [];
 parse_qs(Qs) ->
     parse_qs_name(Qs, [], <<>>).
@@ -289,39 +295,3 @@ unquote_header(<<$\\, C, Rest/binary>>, Acc) ->
 unquote_header(<<C, Rest/binary>>, Acc) ->
     unquote_header(Rest, <<Acc/binary, C>>).
 
-
-%%
-%% TEST
-%%
-% -ifdef(TEST).
-
-% choose_media_type_test() ->
-%     Provided = "text/html",
-%     ShouldMatch = ["*", "*/*", "text/*", "text/html"],
-%     WantNone = ["foo", "text/xml", "application/*", "foo/bar/baz"],
-%     [ ?assertEqual(Provided, choose_media_type([Provided], I))
-%       || I <- ShouldMatch ],
-%     [ ?assertEqual(none, choose_media_type([Provided], I))
-%       || I <- WantNone ].
-
-% choose_media_type_qval_test() ->
-%     Provided = ["text/html", "image/jpeg"],
-%     HtmlMatch = ["image/jpeg;q=0.5, text/html",
-%                  "text/html, image/jpeg; q=0.5",
-%                  "text/*; q=0.8, image/*;q=0.7",
-%                  "text/*;q=.8, image/*;q=.7"], %% strange FeedBurner format
-%     JpgMatch = ["image/*;q=1, text/html;q=0.9",
-%                 "image/png, image/*;q=0.3"],
-%     [ ?assertEqual("text/html", choose_media_type(Provided, I))
-%       || I <- HtmlMatch ],
-%     [ ?assertEqual("image/jpeg", choose_media_type(Provided, I))
-%       || I <- JpgMatch ].
-
-% now_diff_milliseconds_test() ->
-%     Late = {10, 10, 10},
-%     Early1 = {10, 9, 9},
-%     Early2 = {9, 9, 9},
-%     ?assertEqual(1000, now_diff_milliseconds(Late, Early1)),
-%     ?assertEqual(1000001000, now_diff_milliseconds(Late, Early2)).
-
-% -endif. % TEST

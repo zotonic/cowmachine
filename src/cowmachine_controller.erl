@@ -20,113 +20,137 @@
 -author('Marc Worrell <marc@worrell.nl>').
 
 -export([
-    do/3
+    do/3,
+    do_process/3
 ]).
 
 -include("cowmachine_state.hrl").
 
-default(service_available) ->
+default(service_available, _Context) ->
     true;
-default(resource_exists) ->
+default(resource_exists, _Context) ->
     true;
-default(auth_required) ->
+default(auth_required, _Context) ->
     true;
-default(is_authorized) ->
+default(is_authorized, _Context) ->
     true;
-default(forbidden) ->
+default(forbidden, _Context) ->
     false;
-default(upgrades_provided) ->
+default(upgrades_provided, _Context) ->
     [];
-default(allow_missing_post) ->
+default(allow_missing_post, _Context) ->
     false;
-default(malformed_request) ->
+default(malformed_request, _Context) ->
     false;
-default(uri_too_long) ->
+default(uri_too_long, _Context) ->
     false;
-default(known_content_type) ->
+default(known_content_type, _Context) ->
     true;
-default(valid_content_headers) ->
+default(valid_content_headers, _Context) ->
     true;
-default(valid_entity_length) ->
+default(valid_entity_length, _Context) ->
     true;
-default(options) ->
+default(options, _Context) ->
     [];
-default(allowed_methods) ->
-    [<<"GET">>, <<"HEAD">>];
-default(known_methods) ->
-    [<<"GET">>, <<"HEAD">>, <<"POST">>, <<"PUT">>, <<"DELETE">>, <<"TRACE">>, <<"CONNECT">>, <<"OPTIONS">>];
-default(validate_content_checksum) ->
+default(allowed_methods, _Context) ->
+    [ <<"GET">>, <<"HEAD">> ];
+default(known_methods, _Context) ->
+    [ <<"GET">>, <<"HEAD">>, <<"POST">>, <<"PUT">>, <<"DELETE">>,
+      <<"TRACE">>, <<"CONNECT">>, <<"OPTIONS">> ];
+default(validate_content_checksum, _Context) ->
     not_validated;
-default(content_types_provided) ->
-    [{<<"text/html">>, to_html}];
-default(content_types_accepted) ->
+default(content_types_provided, _Context) ->
+    [ {<<"text">>, <<"html">>, []} ];
+default(content_types_accepted, _Context) ->
     [];
-default(delete_resource) ->
+default(delete_resource, _Context) ->
     false;
-default(delete_completed) ->
+default(delete_completed, _Context) ->
     true;
-default(post_is_create) ->
+default(post_is_create, _Context) ->
     false;
-default(create_path) ->
+default(create_path, _Context) ->
     undefined;
-default(base_uri) ->
+default(base_uri, _Context) ->
     undefined;
-default(process_post) ->
+default(process_post, _Context) ->
     false;
-default(language_available) ->
+default(language_available, _Context) ->
     true;
 
 % The default setting is needed for non-charset responses such as image/png
 % An example of how one might do actual negotiation:
-%    [<<"iso-8859-1">>, <<"utf-8">>];
-default(charsets_provided) ->
-    no_charset; % this atom causes charset-negotation to short-circuit
+%    [ <<"iso-8859-1">>, <<"utf-8">> ];
+default(charsets_provided, Context) ->
+    case is_text(cowmachine_req:resp_content_type(Context)) of
+        true -> [ <<"utf-8">> ];
+        false -> no_charset
+    end;
 
 % The content variations available to the controller.
-default(content_encodings_provided) ->
+default(content_encodings_provided, _Context) ->
     [<<"identity">>];
 
 % How the content is transferred, this is handy for auto-gzip of GET-only resources.
 % "identity" and "chunked" are always available to HTTP/1.1 clients.
 % Example:
 %    [{"gzip", fun(X) -> zlib:gzip(X) end}];
-default(transfer_encodings_provided) ->
+default(transfer_encodings_provided, _Context) ->
     [];
 
-default(variances) ->
+default(variances, _Context) ->
     [];
-default(is_conflict) ->
+default(is_conflict, _Context) ->
     false;
-default(multiple_choices) ->
+default(multiple_choices, _Context) ->
     false;
-default(previously_existed) ->
+default(previously_existed, _Context) ->
     false;
-default(moved_permanently) ->
+default(moved_permanently, _Context) ->
     false;
-default(moved_temporarily) ->
+default(moved_temporarily, _Context) ->
     false;
-default(last_modified) ->
+default(last_modified, _Context) ->
     undefined;
-default(expires) ->
+default(expires, _Context) ->
     undefined;
-default(generate_etag) ->
+default(generate_etag, _Context) ->
     undefined;
-default(finish_request) ->
+default(finish_request, _Context) ->
     true;
-default(_) ->
+default(_, _Context) ->
     no_default.
+
+
+is_text(<<"text/", _/binary>>) -> true;
+is_text(<<"application/x-javascript">>) -> true;
+is_text(<<"application/javascript">>) -> true;
+is_text(<<"application/xhtml+xml">>) -> true;
+is_text(<<"application/xml">>) -> true;
+is_text(_Mime) -> false.
 
 
 %% @TODO Re-add logging code
 
-do(Fun, #cmstate{controller=Controller}, Context) when is_atom(Fun) ->
+do(Fun, #cmstate{ controller = Controller }, Context) when is_atom(Fun) ->
     case erlang:function_exported(Controller, Fun, 1) of
         true ->
             Controller:Fun(Context);
         false ->
-            case default(Fun) of
+            case default(Fun, Context) of
                 no_default -> Controller:Fun(Context);
                 Default -> {Default, Context}
             end
     end.
 
+do_process(ContentType, #cmstate{ controller = Controller }, Context) ->
+    case erlang:function_exported(Controller, process, 4) of
+        true ->
+            Controller:process(
+                cowmachine_req:method(Context),
+                ContentType,
+                cowmachine_req:resp_content_type(Context),
+                Context);
+        false ->
+            {true, Context}
+    end.
