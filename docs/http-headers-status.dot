@@ -1,16 +1,17 @@
 // HTTP status flow diagram
-// (c) Copyright 2014 Maas-Maarten Zeeman
+// (c) Copyright 2014-2018 Maas-Maarten Zeeman
+// Licensed under the APLv2
 
 digraph ControllerFSM {
     //splines=ortho;
-    
+
     graph [center=start rankdir=LR ]
     node [shape=box style=rounded];
 
-    
+
     subgraph _cluster_500_responses {
         node [shape=rect style=solid color=red];
-        error 500 501 503;
+        500 501 503;
     };
 
     subgraph _cluster_400_responses {
@@ -25,15 +26,12 @@ digraph ControllerFSM {
 
     subgraph _cluster_answer {
         node [shape=rect style=solid color=green];
-        halt upgrade respond
+        upgrade
     };
 
-    start [shape=Mdiamond]; 
-    start -> do_ping;
+    start [shape=Mdiamond];
+    start -> "service_available?";
 
-    do_ping -> "service_available?" [label = "pong"];
-    do_ping -> 503 [label="!pong"];
-    
     "service_available?" -> "known_method?" [label="true" penwidth=3];
     "service_available?" -> 503 [label="false"];
 
@@ -43,35 +41,33 @@ digraph ControllerFSM {
     "uri_too_long?" -> "method_allowed?" [label="false" penwidth=3];
     "uri_too_long?" -> 414 [label="true"];
 
-    "method_allowed?" -> "has_content_md5_header?" [label="true" penwidth=3]; 
-    "method_allowed?" -> 405 [label="false"]; 
+    "method_allowed?" -> "has_content_md5_header?" [label="true" penwidth=3];
+    "method_allowed?" -> 405 [label="false"];
 
+    "has_content_md5_header?" [label="Content-MD5 header exists?"];
     "has_content_md5_header?" -> "content_md5_valid?" [label=true];
     "has_content_md5_header?" -> "malformed_request?" [label=false];
 
+    "content_md5_valid?" [label="Content-MD5 valid?"];
     "content_md5_valid?" -> "malformed_request?" [label="md5 ok"];
     "content_md5_valid?" -> 400 [label="md5 different"];
-    "content_md5_valid?" -> error;
-    "content_md5_valid?" -> halt;
 
     "malformed_request?" -> 400 [label=true];
     "malformed_request?" -> "is_authorized?" [label=false penwidth=3];
-    
+
     "is_authorized?" -> "forbidden?" [label="true" penwidth=3];
     "is_authorized?" -> 401 [label="false"];
-    "is_authorized?" -> error [style="dotted"];
-    "is_authorized?" -> halt [style="dotted"];
 
     "forbidden?" -> 403 [label="true"];
     "forbidden?" -> "has_upgrade_header?" [label="false" penwidth=3];
 
-    "has_upgrade_header?" [shape=oval];
+    "has_upgrade_header?" [shape=oval,label="Upgrade header exists?"];
     "has_upgrade_header?" -> "do_upgrade?" [label=true];
     "has_upgrade_header?" -> "valid_content_headers?" [label=false];
-    
+
     "do_upgrade?" -> upgrade [label="chosen"];
     "do_upgrade?" -> "valid_content_headers?" [label="none"];
-    
+
     "valid_content_headers?" -> "known_content_type?" [label="true" penwidth=3];
     "valid_content_headers?" -> 501 [label="false"];
 
@@ -84,7 +80,7 @@ digraph ControllerFSM {
     "OPTIONS method?" -> 200 [label="true, call options"];
     "OPTIONS method?" -> "has_accept_header?" [label="false, [option()]"];
 
-    "has_accept_header?" [shape=oval];
+    "has_accept_header?" [shape=oval,label="Accept header exists?"];
     "has_accept_header?" -> "do_select_content_type" [label=false];
     "has_accept_header?" -> "do_choose_content_type" [label=true];
 
@@ -93,16 +89,17 @@ digraph ControllerFSM {
     do_choose_content_type -> "has_accept_language_header?";
     do_choose_content_type -> 406 [label="no media type chosen"];
 
+    "has_accept_language_header?" [label="Accept-Language header exists?"];
     "has_accept_language_header?" [shape=oval];
     "has_accept_language_header?" -> do_choose_charset [label="false"];
     "has_accept_language_header?" -> "language_available?" [label="true"];
- 
+
     "language_available?" -> do_choose_charset [label="true"];
     "language_available?" -> 406 [label="false"];
 
     do_choose_charset -> v3f6;
     do_choose_charset -> 406 [label="no acceptable charset"];
-    
+
     v3f6 [label="v3f6\ncheck acceptable encoding exists"];
     v3f6 -> v3g7 ;
     v3f6 -> v3f7;
@@ -111,7 +108,7 @@ digraph ControllerFSM {
     v3f7 [label="v3f7\nchoose encoding" shape=oval];
     v3f7 -> v3g7 [label="got an encoding"];
     v3f7 -> 406 [label="no acceptable encoding"];
- 
+
     v3g7 [label="v3g7\nresource_exists"]
     v3g7 -> v3g8 [label="true" penwidth=3];
     v3g7 -> v3h7 [label="false"];
@@ -132,11 +129,11 @@ digraph ControllerFSM {
     v3h7 -> 412 [label=true];
     v3h7 -> v3i7 [label=false];
 
-    v3h10 [label="v3h10\nIf-unmodified-since exists?" shape=oval];
+    v3h10 [label="v3h10\nIf-Unmodified-Since exists?" shape=oval];
     v3h10 -> v3i12;
     v3h10 -> v3h11;
-    
-    v3h11 [label="v3h11\nI-UM-S is valid date?" shape=oval];
+
+    v3h11 [label="v3h11\nIf-Unmodified-Since is valid date?" shape=oval];
     v3h11 -> v3i12;
     v3h11 -> v3h12;
 
@@ -147,9 +144,7 @@ digraph ControllerFSM {
     v3i4 [label="v3i4\nmoved_permanently"];
     v3i4 -> v3p3 [label="false" penwidth=3];
     v3i4 -> 301 [label="true"];
-    v3i4 -> error [style=dotted]; 
-    v3i4 -> halt [style=dotted]; 
-    
+
     v3i7 [label="v3i7\nPUT?" shape=oval]
     v3i7 -> v3i4 [label="true"];
     v3i7 -> v3k7 [label="false"];
@@ -161,7 +156,7 @@ digraph ControllerFSM {
     v3i13 [label="v3i13\nIf-None-Match: * exists?" shape=oval];
     v3i13 -> v3j18;
     v3i13 -> v3k13;
- 
+
     v3j18 [label="v3j18\nGET or HEAD?" shape=oval];
     v3j18 -> 304 [label=true];
     v3j18 -> 412 [label=false];
@@ -169,8 +164,6 @@ digraph ControllerFSM {
     v3k5 [label="v3k5\nmoved_permanently"];
     v3k5 -> v3l5 [label="false" penwidth=3];
     v3k5 -> 301 [label="true"];
-    v3k5 -> error [style=dotted];
-    v3k5 -> halt [style=dotted];
 
     v3k7 [label="v3k7\npreviously_existed"];
     v3k7 -> v3k5 [label="true"];
@@ -183,41 +176,39 @@ digraph ControllerFSM {
     v3l5 [label="v3l5\nmoved_temporarily"]
     v3l5 -> v3m5 [label="false" penwidth=3];
     v3l5 -> 307 [label="true"];
-    v3l5 -> error [style=dotted];
-    v3l5 -> halt [style=dotted];
 
     v3l7 [label="v3l7\nPOST?" shape=oval];
     v3l7 -> v3m7 [label=true];
     v3l7 -> 404 [label=false];
 
-    v3l13 [label="v3l13\nIMS exists?" shape=oval];
+    v3l13 [label="v3l13\nIf-Modified-Since exists?" shape=oval];
     v3l13 -> v3m16;
     v3l13 -> v3l14;
 
-    v3l14 [label="v3l14\nIMS is valid date?" shape=oval];
+    v3l14 [label="v3l14\nIf-Modified-Since is valid date?" shape=oval];
     v3l14 -> v3m16;
     v3l14 -> v3l15;
 
-    v3l15 [label="v3l15\nIMS > Now?" shape=oval];
+    v3l15 [label="v3l15\nIf-Modified-Since > Now?" shape=oval];
     v3l15 -> v3m16;
     v3l15 -> v3l17;
 
-    v3l17 [label="v3l17\nLast-Modified > IMS?" shape=oval];
+    v3l17 [label="v3l17\nLast-Modified > If-Modified-Since?" shape=oval];
     v3l17 -> v3m16;
     v3l17 -> 304;
 
     v3m5 [label="v3m5\nPOST?" shape=oval];
     v3m5 -> 410 [label=true];
-    v3m5 -> v3n5 [label=false]; 
-    
+    v3m5 -> v3n5 [label=false];
+
     v3m7 [label="v3m7\nallow_missing_post"];
     v3m7 -> v3n11 [label="true"];
     v3m7 -> 404 [label="false" penwidth=3];
- 
+
     v3m16 [label="v3m16\nDELETE?" shape=oval];
     v3m16 -> v3m20 [label=true];
     v3m16 -> v3n16 [label=false];
-    
+
     v3m20 [label="v3m20\ndelete_resource"]
     v3m20 -> v3m20b [label=true];
     v3m20 -> 500 [label=false penwidth=3];
@@ -229,20 +220,17 @@ digraph ControllerFSM {
     v3n5 [label="v3n5\nallow_missing_post?"]
     v3n5 -> v3n11 [label=false penwidth=3];
     v3n5 -> 410 [label=true];
-    
+
     v3n11 [label="v3n11\npost_is_create"];
     v3n11 -> "create_path?" [label=true];
-    v3n11 -> do_process_post [label=false];
+    v3n11 -> process_post [label=false];
 
-    "create_path?" -> v3p11;
-    "create_path?" -> respond;
-    "create_path?" -> error;
+    "create_path?" -> v3p11 [label=path];
+    "create_path?" -> 500;
 
-    do_process_post -> v3p11;
-    do_process_post -> 303;
-    do_process_post -> respond;
-    do_process_post -> error;
-    
+    process_post -> v3p11;
+    process_post -> 303 [label="do_redirect=true"];
+
     v3n16 [label="v3n16\nPOST?"];
     v3n16 -> v3n11 [label=true];
     v3n16 -> v3o16 [label=false];
@@ -250,9 +238,6 @@ digraph ControllerFSM {
     v3o14 [label="v3o14\nis_conflict?"];
     v3o14 -> 409 [label="true"];
     v3o14 -> v3p11 [label="false" penwidth=3];
-    v3o14 -> respond [style=dotted];
-    v3o14 -> halt [style=dotted];
-    v3o14 -> error [style=dotted];
 
     v3o16 [label="v3o16\nPUT?" shape=oval];
     v3o16 -> v3o14 [label=true];
@@ -260,26 +245,20 @@ digraph ControllerFSM {
 
     v3o18 [label="v3o18\nMultiple representations?" shape=oval];
     v3o18 -> v3o18b;
-    v3o18 -> error [style=dotted];
-    v3o18 -> halt [style=dotted];
-    v3o18 -> respond [style=dotted];
-    
+
     v3o18b [label="v3o18b\nmultiple_choices"];
     v3o18b -> 200 [label="false" penwidth=3];
     v3o18b -> 300 [label="true"];
 
-    v3o20 [label="v3o20\nHas response body?" shape=oval];
+    v3o20 [label="v3o20\nResponse body set?" shape=oval];
     v3o20 -> v3o18 [label="true"];
     v3o20 -> 204 [label="false"];
 
     v3p3 [label="v3p3\nis_conflict"];
     v3p3 -> v3p11 [label="false" penwidth=3];
     v3p3 -> 409 [label="true"];
-    v3p3 -> respond [style=dotted];
-    v3p3 -> halt [style=dotted];
-    v3p3 -> error [style=dotted];
-    
-    v3p11 [label="v3p11\nnew controller?" shape=oval];
+
+    v3p11 [label="v3p11\nResponse 'location' set?" shape=oval];
     v3p11 -> 201 [label=true];
     v3p11 -> v3o20 [label=false];
 
@@ -309,5 +288,5 @@ digraph ControllerFSM {
 
     500 [label="500\nInternal Server Error"];
     501 [label="501\nNot Implemented"];
-    503 [label="503\nService Unavailable"];       
+    503 [label="503\nService Unavailable"];
 }
