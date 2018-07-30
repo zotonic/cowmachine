@@ -21,7 +21,7 @@ Cowmachine is at Hex, in your `rebar.config` file use:
 
 ```erlang
 {deps, [
-    {cowmachine, "1.0.0"}
+    cowmachine
 ]}.
 ```
 
@@ -29,7 +29,7 @@ You can also use the direct Git url and use the development version:
 
 ```erlang
 {deps, [
-    {cowmachine, {git, "", {branch, "master"}}}
+    {cowmachine, {git, "https://github.com/zotonic/cowmachine.git", {branch, "master"}}}
 ]}.
 ```
 
@@ -41,10 +41,11 @@ Cowmachine can be called from your Cowboy middleware:
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 execute(Req, Env) ->
-    % Replace below with your own controller module
+    % Replace below with your own controller module and optionally wrap
+    % the request in your own request-context record.
     Controller = mycontroller,
     ControllerRequest = Req,
-    % Set options for the cowmachine and handle the request
+    % Set options for the cowmachine
     Options = #{
         on_welformed =>
             fun(Ctx) ->
@@ -52,7 +53,25 @@ execute(Req, Env) ->
                 % Examples are parsing the query args, or authentication
             end
     },
-    cowmachine:request(Controller, Req, Env, Options, ControllerRequest).
+    % Handle the request, returns updated Req and Env for next Cowboy middleware
+    cowmachine:request(Controller, ControllerRequest, Env, Options).
+```
+
+Or just use the default Cowmachine middleware:
+
+```erlang
+    #{
+        middlewares => [
+            % ... add your dispatcher middlware
+            cowmachine
+        ],
+        request_timeout => 60000,
+        env => #{
+            % If no dispatcher, default to `mycontroller` as the cowmachine
+            % controller.
+            controller => mycontroller
+        }
+    }.
 ```
 
 ## Dispatching
