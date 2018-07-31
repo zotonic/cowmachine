@@ -133,13 +133,20 @@
 -type writerfun() :: fun( (outputfun(), cowboy_req:req()) -> cowboy_req:req() ).
 -type outputfun() :: fun( (iodata(), IsFinal::boolean(), cowboy_req:req()) -> cowboy_req:req() ).
 
+%% Media types for accepted and provided content types
+-type media_type() :: binary()
+                    | {binary(), binary(), list( {binary(), binary()} )}
+                    | {binary(), binary()}
+                    | {binary(), list( {binary(), binary()} )}.
+
 -export_type([
     context/0,
     halt/0,
     resp_body/0,
     streamfun/0,
     streamfun_next/0,
-    streamdata/0
+    streamdata/0,
+    media_type/0
 ]).
 
 %% @doc Set some intial metadata in the cowboy req
