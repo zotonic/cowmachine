@@ -1,7 +1,7 @@
 %% @author Marc Worrell <marc@worrell.nl>
 %% @hidden
 
--module(cowmachine_request_tests).
+-module(cowmachine_proxy_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 

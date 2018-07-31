@@ -28,7 +28,7 @@
 
 -include("cowmachine_state.hrl").
 
-handle_request(#cmstate{controller=Controller} = CmState, Context) ->
+handle_request(#cmstate{ controller = Controller } = CmState, Context) ->
     try
         code:ensure_loaded(Controller),
         d(v3b13, CmState, Context)
@@ -62,7 +62,6 @@ is_cacheable(content_encodings_provided) -> true;
 is_cacheable(last_modified) -> true;
 is_cacheable(generate_etag) -> true;
 is_cacheable(_) -> false.
-
 
 controller_call_process(ContentType, State, Context) ->
     {T, Context1} = cowmachine_controller:do_process(ContentType, State, Context),
@@ -128,6 +127,8 @@ decision_test({error, Reason0, Reason1}, _Test, _TrueFlow, _FalseFlow, State, Co
     error_response({Reason0, Reason1}, State, Context);
 decision_test({halt, Code}, _Test, _TrueFlow, _FalseFlow, State, Context) ->
     respond(Code, State, Context);
+decision_test(body, Test, TrueFlow, _FalseFlow, State, Context) ->
+    decision_flow(TrueFlow, Test, State, Context);
 decision_test(Test, Test, TrueFlow, _FalseFlow, State, Context) ->
     decision_flow(TrueFlow, Test, State, Context);
 decision_test(Test, _Test, _TrueFlow, FalseFlow, State, Context) ->
@@ -147,8 +148,8 @@ decision_test_fn(Test,TestFn,TrueFlow,FalseFlow, State, Context) ->
         true -> decision_flow(TrueFlow, Test, State, Context);
         false -> decision_flow(FalseFlow, Test, State, Context)
     end.
-    
-decision_flow(X, _TestResult, State, Context) when is_atom(X) -> 
+
+decision_flow(X, _TestResult, State, Context) when is_atom(X) ->
     d(X, State, Context);
 decision_flow(X, _TestResult, State, Context) when is_integer(X), X < 500 ->
     respond(X, State, Context);
@@ -159,7 +160,7 @@ decision_flow({ErrCode, Reason}, _TestResult, State, Context) when is_integer(Er
 
 
 %% "Service Available"
-decision(v3b13, State, Context) -> 
+decision(v3b13, State, Context) ->
     decision_test(controller_call(service_available, State, Context), true, v3b12, 503);
 
 %% "Known method?"
@@ -495,7 +496,7 @@ decision(v3l15, State, Context) ->
 
 %% "Last-Modified > IMS?"
 decision(v3l17, State, Context) ->
-    ReqDate = cowmachine_req:get_req_header(<<"if-modified-since">>, Context),    
+    ReqDate = cowmachine_req:get_req_header(<<"if-modified-since">>, Context),
     ReqErlDate = cowmachine_util:convert_request_date(ReqDate),
     {ResErlDate, S1, C1} = controller_call(last_modified, State, Context),
     decision_test(ResErlDate =:= undefined orelse ResErlDate > ReqErlDate,
@@ -516,7 +517,7 @@ decision(v3m16, State, Context) ->
 %% DELETE enacted immediately?
 %% Also where DELETE is forced.
 decision(v3m20, State, Context) ->
-    decision_test(controller_call(delete_resource, State, Context), true, v3m20b, 500);
+    decision_test(accept_process_helper(State, Context), true, v3m20b, 500);
 decision(v3m20b, State, Context) ->
     decision_test(controller_call(delete_completed, State, Context), true, v3o20, 202);
 
@@ -552,7 +553,7 @@ decision(v3n11, State, Context) ->
                         _ ->
                             {S2, PathCtx}
                     end,
-                    {Res, S4, C4} = accept_helper(LocS, LocCtx),
+                    {Res, S4, C4} = accept_process_helper(LocS, LocCtx),
                     case Res of
                         {halt, Code} -> respond(Code, S4, C4);
                         {error, _,_} -> error_response(Res, S4, C4);
@@ -565,7 +566,7 @@ decision(v3n11, State, Context) ->
                     error_response("create_path not a binary string", S2, C2)
             end;
         false ->
-            {ProcessPost, S2, C2} = accept_helper(S1, C1),
+            {ProcessPost, S2, C2} = accept_process_helper(S1, C1),
             case ProcessPost of
                 true -> {stage1_ok, S2, C2};
                 {halt, Code} -> respond(Code, S2, C2);
@@ -598,9 +599,10 @@ decision(v3n16, State, Context) ->
 decision(v3o14, State, Context) ->
     {IsConflict, S1, C1} = controller_call(is_conflict, State, Context),
     case IsConflict of
-        true -> respond(409, S1, C1);
+        true ->
+            respond(409, S1, C1);
         _ ->
-            {Res, SHelp, CHelp} = accept_helper(S1, C1),
+            {Res, SHelp, CHelp} = accept_process_helper(S1, C1),
             case Res of
                 {halt, Code} -> respond(Code, SHelp, CHelp);
                 {error, _, _} -> error_response(Res, SHelp, CHelp);
@@ -616,25 +618,25 @@ decision(v3o16, State, Context) ->
 %% Multiple representations?
 % (also where body generation for GET and HEAD is done)
 decision(v3o18, State, Context) ->
-    {ProcessResult, SBody, CBody} = case is_GET_HEAD(Context) of
-        true ->
-            {S1, C1} = etag_etc_helper(State, Context),
-            process_helper(undefined, S1, C1);
+    {ProcessResult, SBody, CBody} = case State#cmstate.is_process_called of
         false ->
-            % If a response body was set then also set etag, modified, etc.
-            case cowmachine_req:has_resp_body(Context) of
-                true ->
-                    {S1, C1} = etag_etc_helper(State, Context),
-                    {nop, S1, C1};
-                false ->
-                    {nop, State, Context}
-            end
+            process_helper(undefined, State, Context);
+        true ->
+            {nop, State, Context}
+    end,
+    % If a response body was set then also set etag, modified, etc.
+    {S2, C2} = case cowmachine_req:has_resp_body(CBody) of
+        true ->
+            {S1, C1} = etag_etc_helper(SBody, CBody),
+            {S1, C1};
+        false ->
+            {SBody, CBody}
     end,
     case ProcessResult of
-        {error, _} -> error_response(ProcessResult, SBody, CBody);
-        {error, _,_} -> error_response(ProcessResult, SBody, CBody);
-        {halt, Code} -> respond(Code, SBody, CBody);
-        _ -> d(v3o18b, SBody, CBody)
+        {error, _} -> error_response(ProcessResult, S2, C2);
+        {error, _,_} -> error_response(ProcessResult, S2, C2);
+        {halt, Code} -> respond(Code, S2, C2);
+        _ -> d(v3o18b, S2, C2)
     end;
 
 decision(v3o18b, State, Context) ->
@@ -650,7 +652,7 @@ decision(v3p3, State, Context) ->
     case IsConflict of
         true -> respond(409, S1, C1);
         _ ->
-            {Res, SHelp, CHelp} = accept_helper(S1, C1),
+            {Res, SHelp, CHelp} = accept_process_helper(S1, C1),
             case Res of
                 {halt, Code} -> respond(Code, SHelp, CHelp);
                 {error, _, _} -> error_response(Res, SHelp, CHelp);
@@ -667,39 +669,49 @@ decision(v3p11, State, Context) ->
     end.
 
 
-%% Check if method is get or head, they have body generation on last stage.
-is_GET_HEAD(Context) ->
+%% Check if the request content-type is acceptable - if acceptable then also call the
+%% controller's process function.
+accept_process_helper(State, Context) ->
+    case cowmachine_req:has_req_body(Context) orelse should_have_req_body(Context) of
+        true ->
+             {M1, M2, MParams} = CTParsed = case cowmachine_req:get_req_header(<<"content-type">>, Context) of
+                 undefined ->
+                    {<<"application">>, <<"octet-stream">>, []};
+                 CTHeader ->
+                    cow_http_hd:parse_content_type(CTHeader)
+             end,
+            {ok, RdMParams} = cowmachine_req:set_metadata(mediaparams, MParams, Context),
+            {ContentTypesAccepted, State1, Context1} = controller_call(content_types_accepted, State, RdMParams),
+            case cowmachine_util:is_media_type_accepted(ContentTypesAccepted, CTParsed) of
+                false ->
+                    {{halt, 415}, State1, Context1};
+                true ->
+                    process_helper(<<M1/binary, $/, M2/binary>>, State1, Context1)
+            end;
+        false ->
+            process_helper(undefined, State, Context)
+    end.
+
+should_have_req_body(Context) ->
     case cowmachine_req:method(Context) of
-        <<"GET">> -> true;
-        <<"HEAD">> -> true;
+        <<"POST">> -> true;
+        <<"PUT">> -> true;
+        <<"PATCH">> -> true;
         _ -> false
     end.
 
-%% Check if the request content-type is acceptable - if acceptable then also call the
-%% controller's process function.
-accept_helper(State, Context) ->
-     {M1, M2, MParams} = CTParsed = case cowmachine_req:get_req_header(<<"content-type">>, Context) of
-         undefined ->
-            {<<"application">>, <<"octet-stream">>, []};
-         CTHeader ->
-            cow_http_hd:parse_content_type(CTHeader)
-     end,
-    {ok, RdMParams} = cowmachine_req:set_metadata(mediaparams, MParams, Context),
-    {ContentTypesAccepted, State1, Context1} = controller_call(content_types_accepted, State, RdMParams),
-    case cowmachine_util:is_media_type_accepted(ContentTypesAccepted, CTParsed) of
-        false ->
-            {{halt, 415}, State1, Context1};
-        true ->
-            process_helper(<<M1/binary, $/, M2/binary>>, State1, Context1)
-    end.
-
-process_helper(ContentType, State, Context) ->
-    {Res, S2, C2} = Result = controller_call_process(ContentType, State, Context),
+process_helper(_ContentTypeAccepted, #cmstate{ is_process_called = true } = State, Context) ->
+    lager:error("ERROR in process handling, process_helper called twice"),
+    {{error, internal_logic}, State, Context};
+process_helper(ContentTypeAccepted, State, Context) ->
+    S1 = State#cmstate{ is_process_called = true },
+    {Res, S2, C2} = Result = controller_call_process(ContentTypeAccepted, S1, Context),
     case Res of
         {halt, _} -> Result;
         {error, _, _} -> Result;
         {error, _} -> Result;
         true -> Result;
+        false -> Result;
         RespBody ->
             C3 = cowmachine_req:set_resp_body(RespBody, C2),
             {body, S2, C3}

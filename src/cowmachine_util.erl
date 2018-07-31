@@ -36,16 +36,16 @@ convert_request_date(Date) ->
         error:_ -> bad_date
     end.
 
-% Used when matching content_types_provided against Accept header
-% Return the Content-Type we will serve for a request.
-% If there is no acceptable/available match, return the atom 'none'.
-% AcceptHead is the value of the request's Accept header
-% Provided is a list of media types the controller can provide.
-%  each is either a binary e.g. -- <<"text/html">>
-%   or a binary and parameters e.g. -- {<<"text/html">>,[{<<"level">>,<<"1">>}]}
-%   or two binaries e.g. {<<"text">>, <<"html">>}
-%   or two binaries and parameters e.g. -- {<<"text">>,<<"html">>,[{<<"level">>,<<"1">>}]}
-% (the plain string case with no parameters is much more common)
+%% @doc Match the Accept request header with content_types_provided 
+%% Return the Content-Type for the response.
+%% If there is no acceptable/available match, return the atom 'none'.
+%% AcceptHead is the value of the request's Accept header
+%% Provided is a list of media types the controller can provide.
+%%  each is either a binary e.g. -- <<"text/html">>
+%%   or a binary and parameters e.g. -- {<<"text/html">>,[{<<"level">>,<<"1">>}]}
+%%   or two binaries e.g. {<<"text">>, <<"html">>}
+%%   or two binaries and parameters e.g. -- {<<"text">>,<<"html">>,[{<<"level">>,<<"1">>}]}
+%% (the plain string case with no parameters is much more common)
 -spec choose_media_type_provided( list(), binary() ) -> binary() | none.
 choose_media_type_provided(Provided, AcceptHead) when is_list(Provided), is_binary(AcceptHead) ->
     Requested = accept_header_to_media_types(AcceptHead),
@@ -55,22 +55,22 @@ choose_media_type_provided(Provided, AcceptHead) when is_list(Provided), is_bina
         {CT_T1,CT_T2,CT_P} -> format_content_type(CT_T1,CT_T2,CT_P)
     end.
 
-%% @doc Used when matching content_types_accepted against Content-Type header
+%% @doc Match the Content-Type request header with content_types_accepted against 
 -spec is_media_type_accepted( list(), cow_http_hd:media_type() ) -> binary() | none.
-is_media_type_accepted(Acceptable, ContentType) when is_tuple(ContentType), is_list(Acceptable) ->
-    Acceptable1 = normalize_provided(Acceptable),
-    choose_media_type1(ContentType, Acceptable1) =/= none.
+is_media_type_accepted(ContentTypesAccepted, ContentTypeReqHeader) when is_list(ContentTypesAccepted), is_tuple(ContentTypeReqHeader) ->
+    ContentTypesAccepted1 = normalize_provided(ContentTypesAccepted),
+    choose_media_type1([ ContentTypeReqHeader ], ContentTypesAccepted1) =/= none.
 
-choose_media_type1(_Provided,[]) ->
+choose_media_type1(_Provided, []) ->
     none;
-choose_media_type1(Provided,[H|T]) ->
+choose_media_type1(Provided, [H|T]) ->
     case media_match(H, Provided) of
         none -> choose_media_type1(Provided, T);
-        CT -> CT 
+        CT -> CT
     end.
 
 % Return the first matching content type or the atom 'none'
-media_match(_,[]) ->
+media_match(_, []) ->
     none;
 media_match({<<"*">>, <<"*">>, []}, [H|_]) ->
     H;

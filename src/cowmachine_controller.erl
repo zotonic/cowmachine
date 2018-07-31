@@ -55,7 +55,8 @@ default(options, _Context) ->
 default(allowed_methods, _Context) ->
     [ <<"GET">>, <<"HEAD">> ];
 default(known_methods, _Context) ->
-    [ <<"GET">>, <<"HEAD">>, <<"POST">>, <<"PUT">>, <<"DELETE">>,
+    [ <<"GET">>, <<"HEAD">>,
+      <<"POST">>, <<"PUT">>, <<"PATCH">>, <<"DELETE">>,
       <<"TRACE">>, <<"CONNECT">>, <<"OPTIONS">> ];
 default(validate_content_checksum, _Context) ->
     not_validated;
@@ -82,7 +83,7 @@ default(language_available, _Context) ->
 % An example of how one might do actual negotiation:
 %    [ <<"iso-8859-1">>, <<"utf-8">> ];
 default(charsets_provided, Context) ->
-    case is_text(cowmachine_req:resp_content_type(Context)) of
+    case is_text( cowmachine_req:resp_content_type(Context) ) of
         true -> [ <<"utf-8">> ];
         false -> no_charset
     end;
@@ -122,6 +123,7 @@ default(_, _Context) ->
     no_default.
 
 
+%% @doc Content types that are textual and should have a charset defined.
 is_text(<<"text/", _/binary>>) -> true;
 is_text(<<"application/x-javascript">>) -> true;
 is_text(<<"application/javascript">>) -> true;

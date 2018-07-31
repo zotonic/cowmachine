@@ -209,7 +209,7 @@ digraph ControllerFSM {
     v3m16 -> v3m20 [label=true];
     v3m16 -> v3n16 [label=false];
 
-    v3m20 [label="v3m20\ndelete_resource"]
+    v3m20 [label="v3m20\nprocess(DELETE)"]
     v3m20 -> v3m20b [label=true];
     v3m20 -> 500 [label=false penwidth=3];
 
@@ -228,6 +228,7 @@ digraph ControllerFSM {
     "create_path?" -> v3p11 [label=path];
     "create_path?" -> 500;
 
+    process_post [label="process(POST)"]
     process_post -> v3p11;
     process_post -> 303 [label="do_redirect=true"];
 

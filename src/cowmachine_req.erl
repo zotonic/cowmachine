@@ -89,6 +89,7 @@
     set_resp_redirect/2,
     resp_redirect/1,
 
+    has_req_body/1,
     req_body/1,
     req_body/2,
 
@@ -483,6 +484,12 @@ has_resp_body(Context) ->
         <<>> -> false;
         _ -> true
     end.
+
+
+%% @doc Check if the request has a body
+-spec has_req_body(context()) -> boolean().
+has_req_body(Context) ->
+    cowboy_req:has_body(req(Context)).
 
 %% @doc Fetch the request body as a single binary.
 %% Per default we don't receive more than ~128K bytes.
