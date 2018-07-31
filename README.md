@@ -11,6 +11,7 @@ Main differences with Basho’s Webmachine are:
  * Use cowboy instead of mochiweb for the http server
  * Separate dispatching
  * Simplified callbacks
+ * Single `process/4` callback for all http methods
  * Caching of some callbacks (like `modified`)
  * More streaming options for returned data
  * Better support for range requests
