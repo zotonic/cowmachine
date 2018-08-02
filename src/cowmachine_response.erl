@@ -121,10 +121,10 @@ send_response_bodyfun({file, _Length, Filename}, Code, Parts, Req) ->
     Writer = fun(FunReq) -> send_file_body_parts(FunReq, Parts, Filename) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({stream, StreamFun}, Code, all, Req) ->
-    Writer = fun(FunReq) -> send_stream_body(StreamFun, FunReq) end,
+    Writer = fun(FunReq) -> send_stream_body(FunReq, StreamFun) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({stream, Size, Fun}, Code, all, Req) ->
-    Writer = fun(FunReq) -> send_stream_body(Fun(0, Size-1), FunReq) end,
+    Writer = fun(FunReq) -> send_stream_body(FunReq, Fun(0, Size-1)) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({writer, WriterFun}, Code, all, Req) ->
     Writer = fun(FunReq) -> send_writer_body(WriterFun, FunReq) end,
@@ -192,7 +192,10 @@ send_stream_body(Req, {[], Next}) ->
     send_stream_body(Req, Next());
 send_stream_body(Req, {Data, Next}) ->
     Req1 = send_chunk(Req, Data, nofin),
-    send_stream_body(Req1, Next()).
+    send_stream_body(Req1, Next());
+send_stream_body(Req, Fun) when is_function(Fun, 0) ->
+    send_stream_body(Req, Fun()).
+
 
 send_device_body(Req, Length, IO) ->
     send_file_body_loop(Req, 0, Length, IO, fin).
