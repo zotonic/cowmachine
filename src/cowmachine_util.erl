@@ -56,7 +56,9 @@ choose_media_type_provided(Provided, AcceptHead) when is_list(Provided), is_bina
     end.
 
 %% @doc Match the Content-Type request header with content_types_accepted against 
--spec is_media_type_accepted( list(), cow_http_hd:media_type() ) -> binary() | none.
+-spec is_media_type_accepted( list(), cow_http_hd:media_type() ) -> boolean().
+is_media_type_accepted([], _ReqHeader) ->
+    true;
 is_media_type_accepted(ContentTypesAccepted, ContentTypeReqHeader) when is_list(ContentTypesAccepted), is_tuple(ContentTypeReqHeader) ->
     ContentTypesAccepted1 = normalize_provided(ContentTypesAccepted),
     choose_media_type1([ ContentTypeReqHeader ], ContentTypesAccepted1) =/= none.

@@ -568,10 +568,10 @@ decision(v3n11, State, Context) ->
         false ->
             {ProcessPost, S2, C2} = accept_process_helper(S1, C1),
             case ProcessPost of
-                true -> {stage1_ok, S2, C2};
                 {halt, Code} -> respond(Code, S2, C2);
                 {error, _} = Err -> error_response(Err, S2, C2);
-                {error, _, _} = Err -> error_response(Err, S2, C2)
+                {error, _, _} = Err -> error_response(Err, S2, C2);
+                _ -> {stage1_ok, S2, C2}
             end
     end,
     case Stage1 of
@@ -633,9 +633,9 @@ decision(v3o18, State, Context) ->
             {SBody, CBody}
     end,
     case ProcessResult of
+        {halt, Code} -> respond(Code, S2, C2);
         {error, _} -> error_response(ProcessResult, S2, C2);
         {error, _,_} -> error_response(ProcessResult, S2, C2);
-        {halt, Code} -> respond(Code, S2, C2);
         _ -> d(v3o18b, S2, C2)
     end;
 
@@ -680,7 +680,7 @@ accept_process_helper(State, Context) ->
                  CTHeader ->
                     cow_http_hd:parse_content_type(CTHeader)
              end,
-            {ok, RdMParams} = cowmachine_req:set_metadata(mediaparams, MParams, Context),
+            RdMParams = cowmachine_req:set_metadata(mediaparams, MParams, Context),
             {ContentTypesAccepted, State1, Context1} = controller_call(content_types_accepted, State, RdMParams),
             case cowmachine_util:is_media_type_accepted(ContentTypesAccepted, CTParsed) of
                 false ->
