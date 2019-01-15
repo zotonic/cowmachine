@@ -127,7 +127,7 @@ send_response_bodyfun({stream, Size, Fun}, Code, all, Req) ->
     Writer = fun(FunReq) -> send_stream_body(FunReq, Fun(0, Size-1)) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun({writer, WriterFun}, Code, all, Req) ->
-    Writer = fun(FunReq) -> send_writer_body(WriterFun, FunReq) end,
+    Writer = fun(FunReq) -> send_writer_body(FunReq, WriterFun) end,
     start_response_stream(Code, undefined, Writer, Req);
 send_response_bodyfun(Body, Code, all, Req) ->
     Length = iolist_size(Body),
@@ -256,7 +256,7 @@ send_file_body_loop(Req, Offset, Size, Device, FinNoFin) ->
     send_chunk(Req, Data, nofin),
     send_file_body_loop(Req, Offset+?FILE_CHUNK_LENGTH, Size, Device, FinNoFin).
 
-send_writer_body(BodyFun, Req) ->
+send_writer_body(Req, BodyFun) ->
     BodyFun(fun(Data, false, ReqW) ->
                     send_chunk(ReqW, Data, nofin);
                (Data, true, ReqW) ->
