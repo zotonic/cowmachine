@@ -26,6 +26,8 @@
 
 -export([handle_request/2]).
 
+-export([respond/3]).
+
 -include("cowmachine_state.hrl").
 
 handle_request(#cmstate{ controller = Controller } = CmState, Context) ->
@@ -73,23 +75,22 @@ d(DecisionID, State, Context) ->
     decision(DecisionID, State, Context).
 
 respond(Code, State, Context) ->
-    {RsCode, RdCode} = case Code of
-        200 ->
-            case cowmachine_req:get_req_header(<<"te">>, Context) of
-                undefined -> {State, Context};
-                TEHdr -> choose_transfer_encoding(TEHdr, State, Context)
-            end;
-        Code when Code =:= 403; Code =:= 404; Code =:= 410 ->
-            controller_call(finish_request, State, Context),
-            throw({stop_request, Code});
-        304 ->
-            RdNoCT = cowmachine_req:remove_resp_header(<<"content-type">>, Context),
-            {Etag, StateEt, RdEt0} = controller_call(generate_etag, State, RdNoCT),
-            RdEt = case Etag of
-                undefined -> RdEt0;
-                ETag -> cowmachine_req:set_resp_header(<<"etag">>, cow_uri:urlencode(ETag), RdEt0)
+    {State1, Context1} = case Code of
+        Ok when Ok >= 200, Ok =< 299 ->
+            % Response all ok
+            {State, Context};
+        301 ->
+            % Permanent redirect
+            {State, Context};
+        R when R =:= 304; R =:= 307; R =:= 310 ->
+            % Temp redirects have no content and should not be cached
+            CtxNoCT = cowmachine_req:remove_resp_header(<<"content-type">>, Context),
+            {Etag, StateEt, CtxEt0} = controller_call(generate_etag, State, CtxNoCT),
+            CtxEt = case Etag of
+                undefined -> CtxEt0;
+                ETag -> cowmachine_req:set_resp_header(<<"etag">>, cow_uri:urlencode(ETag), CtxEt0)
             end,
-            {Expires, StateExp, ExpCtx0} = controller_call(expires, StateEt, RdEt),
+            {Expires, StateExp, ExpCtx0} = controller_call(expires, StateEt, CtxEt),
             ExpCtx = case Expires of
                 undefined ->
                     ExpCtx0;
@@ -100,11 +101,20 @@ respond(Code, State, Context) ->
                                     ExpCtx0)
             end,
             {StateExp, ExpCtx};
-        _ -> 
+        % Let the error controller handle 4xx and 5xx errors
+        E when E >= 400, E =< 599 ->
+            controller_call(finish_request, State, Context),
+            throw({stop_request, Code});
+        _ ->
             {State, Context}
     end,
-    RdRespCode = cowmachine_req:set_response_code(Code, RdCode),
-    controller_call(finish_request, RsCode, RdRespCode).
+    % Set transfer encoding.
+    {State2, Context2} = case cowmachine_req:get_req_header(<<"te">>, Context1) of
+        undefined -> {State1, Context1};
+        TEHdr -> choose_transfer_encoding(TEHdr, State1, Context1)
+    end,
+    Context3 = cowmachine_req:set_response_code(Code, Context2),
+    controller_call(finish_request, State2, Context3).
 
 respond(Code, Headers, State, Context) ->
     ContextHs = cowmachine_req:set_resp_headers(Headers, Context),
@@ -223,15 +233,18 @@ decision(v3b8, #cmstate{ options = Options } = State, Context) ->
                end,
     {IsAuthorized, S1, C1} = controller_call(is_authorized, State, Context1),
     case IsAuthorized of
-        true -> 
+        true ->
             d(v3b7, S1, C1);
+        false ->
+            CtxAuth = cowmachine_req:set_resp_header(<<"www-authenticate">>, <<"z.auth">>, C1),
+            respond(401, S1, CtxAuth);
+        AuthHead when is_binary(AuthHead) ->
+            CtxAuth = cowmachine_req:set_resp_header(<<"www-authenticate">>, AuthHead, C1),
+            respond(401, S1, CtxAuth);
         {error, Reason} ->
             error_response(Reason, S1, C1);
         {halt, Code}  ->
-            respond(Code, S1, C1);
-        AuthHead ->
-            CtxAuth = cowmachine_req:set_resp_header(<<"www-authenticate">>, AuthHead, C1),
-            respond(401, S1, CtxAuth)
+            respond(Code, S1, C1)
     end;
 
 %% "Forbidden?"
