@@ -46,18 +46,18 @@ cowmachine_provide_test() ->
         {<<"text">>, <<"html">>, [ {<<"level">>, <<"2">>} ]},
         {<<"text">>, <<"html">>, []}
     ],
-    <<"text/html">> = cowmachine_util:choose_media_type_provided(Provided1, AcceptHdr),
+    {<<"text">>, <<"html">>, _} = cowmachine_util:choose_media_type_provided(Provided1, AcceptHdr),
     Provided2 = [
         {<<"text">>, <<"plain">>},
         {<<"text">>, <<"html">>, [ {<<"foo">>, <<"bar">>} ]},
         {<<"text">>, <<"html">>, [ {<<"level">>, <<"1">>} ]},
         {<<"text">>, <<"html">>, []}
     ],
-    <<"text/html;level=1">> = cowmachine_util:choose_media_type_provided(Provided2, AcceptHdr),
+    {<<"text">>, <<"html">>, [ {<<"level">>, <<"1">>} ]} = cowmachine_util:choose_media_type_provided(Provided2, AcceptHdr),
     Provided3 = [
         {<<"text">>, <<"plain">>},
         {<<"text">>, <<"html">>, [ {<<"foo">>, <<"bar">>} ]},
         {<<"text">>, <<"html">>, [ {<<"level">>, <<"3">>} ]}
     ],
-    <<"text/plain">> = cowmachine_util:choose_media_type_provided(Provided3, AcceptHdr),
+    {<<"text">>, <<"plain">>, []} = cowmachine_util:choose_media_type_provided(Provided3, AcceptHdr),
     ok.

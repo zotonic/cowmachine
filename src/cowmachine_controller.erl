@@ -124,11 +124,11 @@ default(_, _Context) ->
 
 
 %% @doc Content types that are textual and should have a charset defined.
-is_text(<<"text/", _/binary>>) -> true;
-is_text(<<"application/x-javascript">>) -> true;
-is_text(<<"application/javascript">>) -> true;
-is_text(<<"application/xhtml+xml">>) -> true;
-is_text(<<"application/xml">>) -> true;
+is_text({<<"text">>, _, _}) -> true;
+is_text({<<"application">>, <<"x-javascript">>, _}) -> true;
+is_text({<<"application">>, <<"javascript">>, _}) -> true;
+is_text({<<"application">>, <<"xhtml+xml">>, _}) -> true;
+is_text({<<"application">>, <<"xml">>, _}) -> true;
 is_text(_Mime) -> false.
 
 

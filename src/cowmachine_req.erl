@@ -311,13 +311,15 @@ get_req_headers(Context) ->
     cowboy_req:headers(req(Context)).
 
 %% @doc Set the content type of the response
--spec set_resp_content_type(binary(), context()) -> context().
+-spec set_resp_content_type(cow_http_hd:media_type() | binary(), context()) -> context().
 set_resp_content_type(CT, Context) when is_binary(CT) ->
+    set_resp_content_type(cow_http_hd:parse_content_type(CT), Context);
+set_resp_content_type(CT, Context) when is_tuple(CT) ->
     Req = req(Context),
     set_req(Req#{ cowmachine_resp_content_type => CT }, Context).
 
 %% @doc Fetch the content type of the response
--spec resp_content_type(context()) -> binary().
+-spec resp_content_type(context()) -> cow_http_hd:media_type().
 resp_content_type(Context) ->
     maps:get(cowmachine_resp_content_type, req(Context)).
 

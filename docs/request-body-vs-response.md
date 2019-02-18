@@ -30,7 +30,9 @@ function, which can then pattern match on the provided types.
 
 3. Processing function
 
-    process( Method, ContentTypeAccepted, ContentTypeProvided, Context ) ->
+    -spec process( binary(), cow_http_hd:media_type() | undefined, cow_http_hd:media_type(), cowmachine_req:context() ) ->
+                {true | cowmachine_req:resp_body() | cowmachine_req:halt(), cowmachine_req:context()}.
+    process( <<"GET">>, _ContentTypeAccepted, {<<"text">>, <<"plain">>, _}, Context ) ->
         % Processing
-        {true | resp_body() | halt(), Context}
+        {<<"Hello World">>, Context}.
 

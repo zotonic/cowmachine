@@ -26,6 +26,8 @@
 -export([choose_charset/2]).
 -export([choose_encoding/2]).
 -export([parse_header/1]).
+-export([normalize_content_type/1]).
+-export([format_content_type/1]).
 
 
 %% @doc Parse the HTTP date (IMF-fixdate, rfc850, asctime).
@@ -37,7 +39,7 @@ convert_request_date(Date) ->
         error:_ -> bad_date
     end.
 
-%% @doc Match the Accept request header with content_types_provided 
+%% @doc Match the Accept request header with content_types_provided
 %% Return the Content-Type for the response.
 %% If there is no acceptable/available match, return the atom 'none'.
 %% AcceptHead is the value of the request's Accept header
@@ -47,14 +49,11 @@ convert_request_date(Date) ->
 %%   or two binaries e.g. {<<"text">>, <<"html">>}
 %%   or two binaries and parameters e.g. -- {<<"text">>,<<"html">>,[{<<"level">>,<<"1">>}]}
 %% (the plain string case with no parameters is much more common)
--spec choose_media_type_provided( list(), binary() ) -> binary() | none.
+-spec choose_media_type_provided( list(), binary() ) -> cow_http_hd:media_type() | none.
 choose_media_type_provided(Provided, AcceptHead) when is_list(Provided), is_binary(AcceptHead) ->
     Requested = accept_header_to_media_types(AcceptHead),
     Prov1 = normalize_provided(Provided),
-    case choose_media_type_provided_1(Prov1, Requested) of
-        none -> none;
-        {CT_T1,CT_T2,CT_P} -> format_content_type(CT_T1,CT_T2,CT_P)
-    end.
+    choose_media_type_provided_1(Prov1, Requested).
 
 choose_media_type_provided_1(_Provided, []) ->
     none;
@@ -123,7 +122,6 @@ media_type_match(_Req1, _Req2, _Prov1, _Prov2) -> false.
 media_params_match(_ReqList, []) -> true;
 media_params_match(ReqList, ReqList) -> true;
 media_params_match(ReqList, ProvList) ->
-    io:format("~p ~p", [ ReqList, ProvList ]),
     lists:all(
         fun(Prov) ->
             lists:member(Prov, ReqList)
@@ -143,23 +141,24 @@ accept_header_to_media_types(HeadVal) ->
     end.
 
 normalize_provided(Provided) ->
-    [ normalize_provided1(X) || X <- Provided ].
+    [ normalize_content_type(X) || X <- Provided ].
 
-normalize_provided1(Type) when is_binary(Type) ->
+normalize_content_type(Type) when is_binary(Type) ->
     cow_http_hd:parse_content_type(Type);
-normalize_provided1({Type,Params}) when is_binary(Type), is_list(Params) ->
-    {T1, T2, _} = cow_http_hd:parse_content_type(Type),
+normalize_content_type({Type,Params}) when is_binary(Type), is_list(Params) ->
+    {T1,T2, _} = cow_http_hd:parse_content_type(Type),
     {T1, T2, Params};
-normalize_provided1({Type1,Type2}) when is_binary(Type1), is_binary(Type2) ->
+normalize_content_type({Type1,Type2}) when is_binary(Type1), is_binary(Type2) ->
     {Type1, Type2, []};
-normalize_provided1({Type1,Type2,Params}) when is_binary(Type1), is_binary(Type2), is_list(Params) ->
+normalize_content_type({Type1,Type2,Params}) when is_binary(Type1), is_binary(Type2), is_list(Params) ->
     {Type1, Type2, Params}.
 
-format_content_type(T1, T2, []) ->
+-spec format_content_type( cow_http_hd:media_type() ) -> binary().
+format_content_type({T1, T2, []}) ->
     <<T1/binary, $/, T2/binary>>;
-format_content_type(T1, T2, Params) ->
+format_content_type({T1, T2, Params}) ->
     ParamsBin = [ [$;, Param, $=, Value] || {Param,Value} <- Params ],
-    iolist_to_binary([T1, $/, T2, ParamsBin]). 
+    iolist_to_binary([T1, $/, T2, ParamsBin]).
 
 %% @doc Select the best fitting character set or 'none'
 -spec choose_charset([binary()], binary()) -> binary() | none.

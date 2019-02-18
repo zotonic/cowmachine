@@ -304,7 +304,7 @@ decision(v3c3, State, Context) ->
         undefined ->
             % No accept header, select the first content-type provided
             {ContentTypes, S1, C1} = controller_call(content_types_provided, State, Context),
-            MType = hd(ContentTypes),
+            MType = comwachine_util:normalize_content_type( hd(ContentTypes) ),
             C2 = cowmachine_req:set_resp_content_type(MType, C1),
             d(v3d4, S1, C2);
         _ ->
@@ -347,12 +347,12 @@ decision(v3e6, State, Context) ->
 %% Accept-Encoding exists?
 % (also, set content-type header here, now that charset is chosen)
 decision(v3f6, State, Context) ->
-    CType = cowmachine_req:resp_content_type(Context),
+    {CT1, CT2, CTArgs} = CType = cowmachine_req:resp_content_type(Context),
     CSet = case cowmachine_req:resp_chosen_charset(Context) of
                undefined -> CType;
-               CS -> <<CType/binary, "; charset=", CS/binary>>
+               CS -> {CT1, CT2, [ {<<"charset">>, CS} | lists:keydelete(<<"charset">>, 1, CTArgs) ]}
            end,
-    C1 = cowmachine_req:set_resp_header(<<"content-type">>, CSet, Context),
+    C1 = cowmachine_req:set_resp_header(<<"content-type">>, cowmachine_util:format_content_type(CSet, Context)),
     case cowmachine_req:get_req_header(<<"accept-encoding">>, C1) of
         undefined ->
             decision_test(
@@ -687,19 +687,19 @@ decision(v3p11, State, Context) ->
 accept_process_helper(State, Context) ->
     case cowmachine_req:has_req_body(Context) orelse should_have_req_body(Context) of
         true ->
-             {M1, M2, MParams} = CTParsed = case cowmachine_req:get_req_header(<<"content-type">>, Context) of
-                 undefined ->
+            CTParsed = case cowmachine_req:get_req_header(<<"content-type">>, Context) of
+                undefined ->
                     {<<"application">>, <<"octet-stream">>, []};
-                 CTHeader ->
+                CTHeader ->
                     cow_http_hd:parse_content_type(CTHeader)
-             end,
-            RdMParams = cowmachine_req:set_metadata(mediaparams, MParams, Context),
-            {ContentTypesAccepted, State1, Context1} = controller_call(content_types_accepted, State, RdMParams),
+            end,
+            RdCT = cowmachine_req:set_metadata(content_type, CTParsed, Context),
+            {ContentTypesAccepted, State1, Context1} = controller_call(content_types_accepted, State, RdCT),
             case cowmachine_util:is_media_type_accepted(ContentTypesAccepted, CTParsed) of
                 false ->
                     {{halt, 415}, State1, Context1};
                 true ->
-                    process_helper(<<M1/binary, $/, M2/binary>>, State1, Context1)
+                    process_helper(CTParsed, State1, Context1)
             end;
         false ->
             process_helper(undefined, State, Context)
