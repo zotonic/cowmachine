@@ -352,7 +352,7 @@ decision(v3f6, State, Context) ->
                undefined -> CType;
                CS -> {CT1, CT2, [ {<<"charset">>, CS} | lists:keydelete(<<"charset">>, 1, CTArgs) ]}
            end,
-    C1 = cowmachine_req:set_resp_header(<<"content-type">>, cowmachine_util:format_content_type(CSet, Context)),
+    C1 = cowmachine_req:set_resp_header(<<"content-type">>, cowmachine_util:format_content_type(CSet), Context),
     case cowmachine_req:get_req_header(<<"accept-encoding">>, C1) of
         undefined ->
             decision_test(
