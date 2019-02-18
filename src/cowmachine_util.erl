@@ -22,6 +22,7 @@
 -export([convert_request_date/1]).
 -export([choose_media_type_provided/2]).
 -export([is_media_type_accepted/2]).
+-export([choose_media_type_accepted/2]).
 -export([choose_charset/2]).
 -export([choose_encoding/2]).
 -export([parse_header/1]).
@@ -50,33 +51,25 @@ convert_request_date(Date) ->
 choose_media_type_provided(Provided, AcceptHead) when is_list(Provided), is_binary(AcceptHead) ->
     Requested = accept_header_to_media_types(AcceptHead),
     Prov1 = normalize_provided(Provided),
-    case choose_media_type1(Prov1, Requested) of
+    case choose_media_type_provided_1(Prov1, Requested) of
         none -> none;
         {CT_T1,CT_T2,CT_P} -> format_content_type(CT_T1,CT_T2,CT_P)
     end.
 
-%% @doc Match the Content-Type request header with content_types_accepted against 
--spec is_media_type_accepted( list(), cow_http_hd:media_type() ) -> boolean().
-is_media_type_accepted([], _ReqHeader) ->
-    true;
-is_media_type_accepted(ContentTypesAccepted, ContentTypeReqHeader) when is_list(ContentTypesAccepted), is_tuple(ContentTypeReqHeader) ->
-    ContentTypesAccepted1 = normalize_provided(ContentTypesAccepted),
-    choose_media_type1([ ContentTypeReqHeader ], ContentTypesAccepted1) =/= none.
-
-choose_media_type1(_Provided, []) ->
+choose_media_type_provided_1(_Provided, []) ->
     none;
-choose_media_type1(Provided, [H|T]) ->
-    case media_match(H, Provided) of
-        none -> choose_media_type1(Provided, T);
+choose_media_type_provided_1(Provided, [H|T]) ->
+    case media_match_provided(H, Provided) of
+        none -> choose_media_type_provided_1(Provided, T);
         CT -> CT
     end.
 
 % Return the first matching content type or the atom 'none'
-media_match(_, []) ->
+media_match_provided(_, []) ->
     none;
-media_match({<<"*">>, <<"*">>, []}, [H|_]) ->
+media_match_provided({<<"*">>, <<"*">>, []}, [H|_]) ->
     H;
-media_match({TypeA, TypeB, Params}, Provided) ->
+media_match_provided({TypeA, TypeB, Params}, Provided) ->
     case lists:dropwhile(
                 fun({PT1,PT2,PP}) ->
                     not (media_type_match(TypeA, TypeB, PT1, PT2)
@@ -88,13 +81,54 @@ media_match({TypeA, TypeB, Params}, Provided) ->
         [M|_] -> M
     end.
 
+%% @doc Match the Content-Type request header with content_types_accepted against 
+-spec is_media_type_accepted( list(), cow_http_hd:media_type() ) -> boolean().
+is_media_type_accepted([], _ReqHeader) ->
+    true;
+is_media_type_accepted(ContentTypesAccepted, ContentTypeReqHeader) when is_list(ContentTypesAccepted), is_tuple(ContentTypeReqHeader) ->
+    ContentTypesAccepted1 = normalize_provided(ContentTypesAccepted),
+    choose_media_type_accepted_1(ContentTypesAccepted1, ContentTypeReqHeader) =/= none.
+
+-spec choose_media_type_accepted( list( cowmachine_req:media_type() ), cow_http_hd:media_type() ) -> cowmachine_req:media_type().
+choose_media_type_accepted([], ReqHeader) ->
+    ReqHeader;
+choose_media_type_accepted(ContentTypesAccepted, ContentTypeReqHeader) when is_list(ContentTypesAccepted), is_tuple(ContentTypeReqHeader) ->
+    ContentTypesAccepted1 = normalize_provided(ContentTypesAccepted),
+    choose_media_type_accepted_1(ContentTypesAccepted1, ContentTypeReqHeader).
+
+choose_media_type_accepted_1([], _CTReq) ->
+    none;
+choose_media_type_accepted_1([{A1,A2,APs} = AT|T], {CT1,CT2,CTPs} = CTReq) ->
+    case media_type_match(A1, A2, CT1, CT2) of
+        true ->
+            case media_params_match(CTPs, APs) of
+                true ->
+                    AT;
+                false ->
+                    choose_media_type_accepted_1(T, CTReq)
+            end;
+        false ->
+            choose_media_type_accepted_1(T, CTReq)
+    end.
+
+
+
 media_type_match(Req1, Req2, Req1, Req2) -> true;
 media_type_match(<<"*">>, <<"*">>, _Prov1, _Prov2) -> true;
 media_type_match(Req1, <<"*">>, Req1, _Prov2) -> true;
 media_type_match(_Req1, _Req2, _Prov1, _Prov2) -> false.
 
-media_params_match(Req, Req) -> true;
-media_params_match(Req, Prov) -> lists:sort(Req) =:= lists:sort(Prov).
+%% @doc Match the media parameters. Provided must be a subset of requested.
+%%      There may not be a type in provided that is not in requested.
+media_params_match(_ReqList, []) -> true;
+media_params_match(ReqList, ReqList) -> true;
+media_params_match(ReqList, ProvList) ->
+    io:format("~p ~p", [ ReqList, ProvList ]),
+    lists:all(
+        fun(Prov) ->
+            lists:member(Prov, ReqList)
+        end,
+        ProvList).
 
 % Given the value of an accept header, produce an ordered list based on the q-values.
 % The first result being the highest-priority requested type.
