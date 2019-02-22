@@ -304,7 +304,7 @@ decision(v3c3, State, Context) ->
         undefined ->
             % No accept header, select the first content-type provided
             {ContentTypes, S1, C1} = controller_call(content_types_provided, State, Context),
-            MType = comwachine_util:normalize_content_type( hd(ContentTypes) ),
+            MType = cowmachine_util:normalize_content_type( hd(ContentTypes) ),
             C2 = cowmachine_req:set_resp_content_type(MType, C1),
             d(v3d4, S1, C2);
         _ ->
