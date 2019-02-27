@@ -82,7 +82,7 @@ respond(Code, State, Context) ->
         301 ->
             % Permanent redirect
             {State, Context};
-        R when R =:= 304; R =:= 307; R =:= 310 ->
+        R when R =:= 303; R =:= 307 ->
             % Temp redirects have no content and should not be cached
             CtxNoCT = cowmachine_req:remove_resp_header(<<"content-type">>, Context),
             {Etag, StateEt, CtxEt0} = controller_call(generate_etag, State, CtxNoCT),
@@ -102,7 +102,8 @@ respond(Code, State, Context) ->
             end,
             {StateExp, ExpCtx};
         % Let the error controller handle 4xx and 5xx errors
-        E when E >= 400, E =< 599 ->
+        E when E =:= 401; E =:= 403; E =:= 404; E=:= 410;
+               (E >= 500 andalso E =< 599) ->
             controller_call(finish_request, State, Context),
             throw({stop_request, Code});
         _ ->
