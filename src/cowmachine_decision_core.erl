@@ -43,7 +43,6 @@ handle_request(#cmstate{ controller = Controller } = CmState, Context) ->
 %% @doc Call the controller
 -spec controller_call(atom(), #cmstate{}, term()) -> {term(), #cmstate{}, term()}.
 controller_call(Callback, #cmstate{cache=Cache} = State, Context) ->
-    io:fwrite(standard_error, "controller_call: ~p~n", [Callback]),
     case is_cacheable(Callback) of
         true ->
             case maps:find(Callback, Cache) of
@@ -655,7 +654,6 @@ decision(v3o18, State, Context) ->
     end;
 
 decision(v3o18b, State, Context) ->
-    io:fwrite(standard_error, "v3018b ~p~n", [Context]),
     decision_test(controller_call(multiple_choices, State, Context), true, 300, 200);
 
 %% Response includes an entity?
