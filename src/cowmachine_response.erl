@@ -48,11 +48,16 @@ server_header() ->
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 send_response(Context, Env) ->
     Req = cowmachine_req:req(Context),
-    HttpStatusCode =
-        case proplists:get_value(http_status_code, maps:get(controller_options, Env)) of
-            Code when is_integer(Code) -> Code;
-            _ -> cowmachine_req:response_code(Req)
-        end,
+
+    HttpStatusCode = 200,
+
+    %    case proplists:get_value(http_status_code, maps:get(controller_options, Env), []) of
+    %        Code when is_integer(Code) -> Code;
+    %        _ -> cowmachine_req:response_code(Req)
+    %    end,
+
+    io:fwrite(standard_error, "response code: ~p~n", [HttpStatusCode]),
+
     Req1 = send_response_range(HttpStatusCode, Req),
     {ok, Req1, Env}.
 
