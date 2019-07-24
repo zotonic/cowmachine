@@ -8,14 +8,7 @@
 ]).
 
 cowmachine_start_test() ->
-    ok = application:ensure_started(ranch),
-    ok = application:ensure_started(cowlib),
-    ok = application:ensure_started(cowboy),
-
-    ok = application:ensure_started(compiler),
-    ok = application:ensure_started(syntax_tools),
-    ok = application:ensure_started(goldrush),
-    ok = application:ensure_started(lager),
+    {ok, _} = application:ensure_all_started(cowmachine),
 
     TestPid = self(), 
     spawn_link(fun() ->
