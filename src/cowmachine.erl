@@ -27,6 +27,9 @@
     request/4
 ]).
 
+%% Internal logging interface
+-export([log/3, log_report/2]).
+
 -include("cowmachine_state.hrl").
 
 %% @doc Cowboy middleware, route the new request. Continue with the cowmachine,
@@ -77,13 +80,13 @@ request_1(Controller, Req, Env, Options, Context) ->
         end
     catch
         throw:{stop_request, 500, Reason} ->
-            lager:error("stop_request ~p (reason ~p)", [500, Reason]),
+            log(error, "stop_request ~p (reason ~p)", [500, Reason]),
             handle_stop_request(500, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, ResponseCode, Reason} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, 500} ->
             StackTrace = erlang:get_stacktrace(),
-            lager:error("stop_request ~p (stacktrace ~p)", [500, StackTrace]),
+            log(error, "stop_request ~p (stacktrace ~p)", [500, StackTrace]),
             handle_stop_request(500, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
@@ -91,11 +94,11 @@ request_1(Controller, Req, Env, Options, Context) ->
             {stop, {ResponseCode, Req}};
         throw:Error ->
             Stacktrace = erlang:get_stacktrace(),
-            lager:warning("Error throw:~p in ~p", [Error, Stacktrace]),
+            log(warning, "Error throw:~p in ~p", [Error, Stacktrace]),
             handle_stop_request(500, Site, {throw, {Error, Stacktrace}}, Req, Env, State, Context);
         Type:Error ->
             Stacktrace = erlang:get_stacktrace(),
-            lager:warning("Error ~p:~p in ~p", [Type, Error, Stacktrace]),
+            log(warning, "Error ~p:~p in ~p", [Type, Error, Stacktrace]),
             {stop, {500, Req}}
     end.
 
@@ -115,11 +118,26 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
         cowmachine_response:send_response(ContextRespCode, Env)
     catch
         throw:{stop_request, Code, Reason} ->
-            lager:warning("Error ~p (reason ~p)", [Code, Reason]),
+            log(warning, "Error ~p (reason ~p)", [Code, Reason]),
             {stop, {Code, Req}};
         Type:Error ->
             Stacktrace = erlang:get_stacktrace(),
-            lager:warning("Error ~p:~p in ~p", [Type, Error, Stacktrace]),
+            log(warning, "Error ~p:~p in ~p", [Type, Error, Stacktrace]),
             {stop, {500, Req}}
     end.
 
+log_report(Level, Report) when is_list(Report) ->
+    Function = case Level of
+                   error -> error_report;
+                   warning -> warning_report;
+                   info -> info_report
+               end,
+    error_logger:Function(Report).
+
+log(Level, Format, Args) ->
+    Function = case Level of
+                   error -> error_msg;
+                   warning -> warning_msg;
+                   info -> info_msg
+               end,
+    error_logger:Function(Format, Args).

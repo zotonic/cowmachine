@@ -715,7 +715,7 @@ should_have_req_body(Context) ->
     end.
 
 process_helper(_ContentTypeAccepted, #cmstate{ is_process_called = true } = State, Context) ->
-    lager:error("ERROR in process handling, process_helper called twice"),
+    cowmachine:log(error, "ERROR in process handling, process_helper called twice", []),
     {{error, internal_logic}, State, Context};
 process_helper(ContentTypeAccepted, State, Context) ->
     S1 = State#cmstate{ is_process_called = true },

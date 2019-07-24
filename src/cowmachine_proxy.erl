@@ -96,7 +96,9 @@ update_req_proxy(Forwarded, Req) ->
                 cowmachine_remote => RemoteAdr
             };
         false ->
-            lager:error("Proxy header 'Forwarded' from untrusted peer ~s", [inet_parse:ntoa(Peer)]),
+            cowmachine:log_report(error, [ {module, ?MODULE},
+                                           {msg, "Proxy header 'Forwarded' from untrusted peer"},
+                                           {peer, inet_parse:ntoa(Peer)}]),
             update_req_direct(Req)
     end.
 
@@ -132,7 +134,7 @@ update_req_old_proxy(XForwardedFor, Req) ->
                 cowmachine_remote => RemoteAdr
             };
         false ->
-            lager:error("Proxy header 'X-Forwarded-For' from untrusted peer ~s", [inet_parse:ntoa(Peer)]),
+            cowmachine:log(error, "Proxy header 'X-Forwarded-For' from untrusted peer ~s", [inet_parse:ntoa(Peer)]),
             update_req_direct(Req)
     end.
 

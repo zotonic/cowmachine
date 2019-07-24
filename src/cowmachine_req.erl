@@ -517,8 +517,7 @@ req_body(MaxLength, Context) when MaxLength > 0 ->
         {ok, Body, Req2} ->
             {Body, set_req(Req2, Context)};
         {more, _Body, Req2} ->
-            lager:warning("Dropped request body, as it is larger than ~p bytes.",
-                          [MaxLength]),
+            cowmachine:log(warning, "Dropped request body, as it is larger than ~p bytes.", [MaxLength]),
             {undefined, set_req(Req2, Context)}
     end.
 

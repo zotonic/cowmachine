@@ -6,9 +6,8 @@
   {applications, [
                   kernel,
                   stdlib,
-                  cowboy,
-                  lager,
-                  zotonic_stdlib
+                  zotonic_stdlib,
+                  cowboy
                  ]},
   {env, [
         {use_sendfile, erlang}
