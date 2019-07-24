@@ -5,7 +5,10 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  cowboy,
+                  lager,
+                  zotonic_stdlib
                  ]},
   {env, [
         {use_sendfile, erlang}

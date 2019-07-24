@@ -40,19 +40,23 @@ server_header() ->
     case application:get_env(cowmachine, server_header) of
         {ok, Server} -> z_convert:to_binary(Server);
         undefined ->
-            {ok, Version} = application:get_key(cowmachine, vsn),
-            <<"CowMachine/", (z_convert:to_binary(Version))/binary>>
+            case application:get_key(cowmachine, vsn) of
+                {ok, Version} -> <<"CowMachine/", (z_convert:to_binary(Version))/binary>>;
+                undefined -> <<"CowMachine">>
+            end
     end.
 
 -spec send_response(cowmachine_req:context(), Env) -> {ok, Req, Env} | {stop, Req}
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 send_response(Context, Env) ->
     Req = cowmachine_req:req(Context),
-    HttpStatusCode =
-        case proplists:get_value(http_status_code, maps:get(controller_options, Env)) of
-            Code when is_integer(Code) -> Code;
-            _ -> cowmachine_req:response_code(Req)
-        end,
+
+    ControllerOptions = maps:get(controller_options, Env, []),
+    HttpStatusCode = case proplists:get_value(http_status_code, ControllerOptions) of
+                         Code when is_integer(Code) -> Code;
+                         _ -> cowmachine_req:response_code(Req)
+                     end,
+
     Req1 = send_response_range(HttpStatusCode, Req),
     {ok, Req1, Env}.
 
