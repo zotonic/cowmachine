@@ -27,6 +27,9 @@
     ]).
 
 -export([
+    controller/1,
+    controller_options/1,
+
     site/1,
     method/1,
     version/1,
@@ -168,7 +171,10 @@ init_req(Req0, Env) ->
         cowmachine_disp_path => proplists:get_value('*', Bindings),
         cowmachine_range_ok => true,
 
-        cowmachine_cookies => cowboy_req:parse_cookies(Req)
+        cowmachine_cookies => cowboy_req:parse_cookies(Req),
+
+        cowmachine_controller => maps:get(controller, Env),
+        cowmachine_controller_options => maps:get(controller_options, Env, [])
     }.
 
 ensure_proxy_args(Req) ->
@@ -191,6 +197,15 @@ req(Context) when is_tuple(Context) ->
 req(Req) when is_map(Req) ->
     Req.
 
+%% @doc Return the current cowmachine controller
+-spec controller(context()) -> module().
+controller(Context) ->
+    maps:get(controller, req(Context)).
+
+%% @doc Return the current cowmachine controller options
+-spec controller_options(context()) -> list().
+controller_options(Context) ->
+    maps:get(controller_options, req(Context)).
 
 %% @doc Return the cowmachine site.
 -spec site(context()) -> atom().
