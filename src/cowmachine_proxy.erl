@@ -55,7 +55,7 @@ update_req_direct(Req) ->
     {Peer, _Port} = cowboy_req:peer(Req),
     Req#{
         cowmachine_proxy => false,
-        cowmachine_forwarded_host => parse_host(cowboy_req:header(<<"host">>, Req)),
+        cowmachine_forwarded_host => parse_host(maps:get(host, Req)),
         cowmachine_forwarded_port => cowboy_req:port(Req),
         cowmachine_forwarded_proto => cowboy_req:scheme(Req),
         cowmachine_remote_ip => Peer,

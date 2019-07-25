@@ -10,8 +10,8 @@ cowmachine_metadata_test() ->
         peer => {{127,0,0,1},1234},
         scheme => <<"http">>,
         port => 8000,
+        host => <<"local.dev">>,
         headers => #{
-            <<"host">> => <<"local.dev">>
         }
     },
     #{
@@ -90,8 +90,8 @@ cowmachine_x_forwarded_test() ->
         peer => {{127,0,0,1},1234},
         scheme => <<"http">>,
         port => 8000,
+        host => <<"local.dev">>,
         headers => #{
-            <<"host">> => <<"local.dev">>,
             <<"x-forwarded-for">> => <<"192.0.2.60">>,
             <<"x-forwarded-host">> => <<"example.com">>,
             <<"x-forwarded-proto">> => <<"https">>,
@@ -113,8 +113,8 @@ cowmachine_forwarded_untrusted_test() ->
         peer => {{1,2,3,4},1234},
         scheme => <<"http">>,
         port => 8000,
+        host => <<"local.dev">>,
         headers => #{
-            <<"host">> => <<"local.dev">>,
             <<"forwarded">> => <<"for=192.0.2.60; proto=https; by=203.0.113.43; host=\"example.com\"">>
         }
     },
