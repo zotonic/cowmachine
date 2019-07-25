@@ -20,6 +20,8 @@
 -module(cowmachine_req).
 -author("Marc Worrell <marc@worrell.nl").
 
+-include("cowmachine_log.hrl").
+
 -export([
     init_req/2,
     set_req/2,
@@ -517,7 +519,12 @@ req_body(MaxLength, Context) when MaxLength > 0 ->
         {ok, Body, Req2} ->
             {Body, set_req(Req2, Context)};
         {more, _Body, Req2} ->
-            cowmachine:log(warning, "Dropped request body, as it is larger than ~p bytes.", [MaxLength]),
+            cowmachine:log(#{ level => warning,
+                              at => ?AT,
+                              text => lists:flatten(
+                                        io_lib:format("Dropped request body, as it is larger than ~p bytes.",
+                                                      [MaxLength]))
+                              }, Req2),
             {undefined, set_req(Req2, Context)}
     end.
 
