@@ -91,7 +91,7 @@ request_1(Controller, Req, Env, Options, Context) ->
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode) ->
-            {stop, {ResponseCode, Req}};
+            {stop, cowboy_req:reply(ResponseCode, Req)};
         throw:Error ->
             Stacktrace = erlang:get_stacktrace(),
             log(warning, "Error throw:~p in ~p", [Error, Stacktrace]),
@@ -99,7 +99,8 @@ request_1(Controller, Req, Env, Options, Context) ->
         Type:Error ->
             Stacktrace = erlang:get_stacktrace(),
             log(warning, "Error ~p:~p in ~p", [Type, Error, Stacktrace]),
-            {stop, {500, Req}}
+
+            {stop, cowboy_req:reply(500, Req)}
     end.
 
 % @todo add the error controller as an application env, if not defined then just terminate with the corresponding error code.
@@ -119,11 +120,11 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
     catch
         throw:{stop_request, Code, Reason} ->
             log(warning, "Error ~p (reason ~p)", [Code, Reason]),
-            {stop, {Code, Req}};
+            {stop, cowboy_req:reply(Code, Req)};
         Type:Error ->
             Stacktrace = erlang:get_stacktrace(),
             log(warning, "Error ~p:~p in ~p", [Type, Error, Stacktrace]),
-            {stop, {500, Req}}
+            {stop, cowboy_req:reply(500, Req)}
     end.
 
 log_report(Level, Report) when is_list(Report) ->

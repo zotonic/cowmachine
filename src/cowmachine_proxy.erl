@@ -29,6 +29,8 @@
 
 -include_lib("cowlib/include/cow_parse.hrl").
 
+-define(AT(), (lists:flatten(io_lib:format("~p:~p:~B", [?MODULE, ?FUNCTION_NAME, ?LINE])))).
+
 %% @doc Cowboy middleware, route the new request. Continue with the cowmachine,
 %%      requests a redirect or return a 400 on an unknown host.
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
@@ -96,9 +98,9 @@ update_req_proxy(Forwarded, Req) ->
                 cowmachine_remote => RemoteAdr
             };
         false ->
-            cowmachine:log_report(error, [ {module, ?MODULE},
-                                           {msg, "Proxy header 'Forwarded' from untrusted peer"},
-                                           {peer, inet_parse:ntoa(Peer)}]),
+            cowmachine:log_report(error, [ {at, ?AT()},
+                                           {text, "Received proxy header 'Forwarded' from untrusted peer"},
+                                           {src, [{peer, inet_parse:ntoa(Peer)}]}]),
             update_req_direct(Req)
     end.
 
@@ -134,8 +136,12 @@ update_req_old_proxy(XForwardedFor, Req) ->
                 cowmachine_remote => RemoteAdr
             };
         false ->
-            cowmachine:log(error, "Proxy header 'X-Forwarded-For' from untrusted peer ~s", [inet_parse:ntoa(Peer)]),
+            cowmachine:log_report(error, [ {at, ?AT()},
+                                           {text, "Received proxy header 'X-Forwarded-For' from untrusted peer"},
+                                           {src, [{peer, inet_parse:ntoa(Peer)}]}]),
+
             update_req_direct(Req)
+
     end.
 
 trim(undefined) -> undefined;
