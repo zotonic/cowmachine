@@ -28,9 +28,10 @@
 ]).
 
 %% Internal logging interface
--export([log/3, log_report/2]).
+-export([log/1, log/2]).
 
 -include("cowmachine_state.hrl").
+-include("cowmachine_log.hrl").
 
 %% @doc Cowboy middleware, route the new request. Continue with the cowmachine,
 %%      requests a redirect or return a 400 on an unknown host.
@@ -80,26 +81,30 @@ request_1(Controller, Req, Env, Options, Context) ->
         end
     catch
         throw:{stop_request, 500, Reason} ->
-            log(error, "stop_request ~p (reason ~p)", [500, Reason]),
+            log(#{ at => ?AT, level => error, code => 500, text => "Stop request", reason => Reason}, Req),
             handle_stop_request(500, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, ResponseCode, Reason} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, 500} ->
-            StackTrace = erlang:get_stacktrace(),
-            log(error, "stop_request ~p (stacktrace ~p)", [500, StackTrace]),
+            Stacktrace = erlang:get_stacktrace(),
+            log(#{ at => ?AT, level => error, code => 500, text => "Stop request",
+                   stacktrace => Stacktrace}, Req),
             handle_stop_request(500, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode) ->
             {stop, cowboy_req:reply(ResponseCode, Req)};
-        throw:Error ->
+        throw:Reason ->
             Stacktrace = erlang:get_stacktrace(),
-            log(warning, "Error throw:~p in ~p", [Error, Stacktrace]),
-            handle_stop_request(500, Site, {throw, {Error, Stacktrace}}, Req, Env, State, Context);
-        Type:Error ->
+            log(#{ at => ?AT, level => error, code => 500, text => "Unexpected throw",
+                   class => throw, reason => Reason,
+                   stacktrace => Stacktrace}, Req),
+            handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context);
+        Class:Reason ->
             Stacktrace = erlang:get_stacktrace(),
-            log(warning, "Error ~p:~p in ~p", [Type, Error, Stacktrace]),
-
+            log(#{ at => ?AT, level => error, code => 500, text => "Unexpected exception",
+                   class => Class, reason => Reason,
+                   stacktrace => Stacktrace}, Req),
             {stop, cowboy_req:reply(500, Req)}
     end.
 
@@ -119,26 +124,61 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
         cowmachine_response:send_response(ContextRespCode, Env)
     catch
         throw:{stop_request, Code, Reason} ->
-            log(warning, "Error ~p (reason ~p)", [Code, Reason]),
+            log(#{ at => ?AT, level => warning,
+                   text => "Stop request",
+                   code => Code,
+                   reason => Reason }, Req),
             {stop, cowboy_req:reply(Code, Req)};
-        Type:Error ->
+        Class:Reason->
             Stacktrace = erlang:get_stacktrace(),
-            log(warning, "Error ~p:~p in ~p", [Type, Error, Stacktrace]),
+            log(#{ at => ?AT, level => warning,
+                   text => "Unexpected exception",
+                   code => 500,
+                   class => Class,
+                   reason => Reason,
+                   stacktrace => Stacktrace
+                 }, Req),
             {stop, cowboy_req:reply(500, Req)}
     end.
 
-log_report(Level, Report) when is_list(Report) ->
+
+%%
+%% Logging
+%%
+
+log(#{ level := Level } = Report) ->
+    log_report(Level, Report#{in => cowmachine}).
+
+log(#{ level := Level } = Report, Req) when is_map(Req) ->
+    Report1 = lists:foldl(fun({Key, Fun}, Acc) ->
+                                  case Fun(Req) of
+                                      undefined -> Acc;
+                                      {ok, Val} -> Acc#{ Key => Val }
+                                  end
+                          end, Report, [{src, fun src/1},
+                                        {dst, fun dst/1},
+                                        {path, fun path/1}]), 
+    log_report(Level, Report1#{in => cowmachine}).
+
+log_report(Level, Report) when is_map(Report) ->
+    %% @todo also implement error logging for erlang 21 and higher.
     Function = case Level of
                    error -> error_report;
                    warning -> warning_report;
                    info -> info_report
                end,
-    error_logger:Function(Report).
+    error_logger:Function(maps:to_list(Report)).
 
-log(Level, Format, Args) ->
-    Function = case Level of
-                   error -> error_msg;
-                   warning -> warning_msg;
-                   info -> info_msg
-               end,
-    error_logger:Function(Format, Args).
+src(#{ peer := {IP, Port} }) -> {ok, ip_info(IP, Port)};
+src(_) -> undefined. 
+
+dst(#{ sock := {IP, Port} } ) -> {ok, ip_info(IP, Port)};
+dst(#{ port := Port }) -> {ok, #{ port => Port }};
+dst(_) -> undefined.
+
+path(#{ path := Path }) -> {ok, Path};
+path(_) -> undefined.
+
+ip_info(IP, Port) ->
+    IPType = case tuple_size(IP) of 4 -> ip4; 8 -> ip6 end,
+    #{IPType => inet_parse:ntoa(IP), port => Port}.

@@ -33,6 +33,8 @@
     send_stream_body/2
 ]).
 
+-include("cowmachine_log.hrl").
+
 -define(IDLE_TIMEOUT, infinity).
 -define(FILE_CHUNK_LENGTH, 65536).
 
@@ -405,7 +407,7 @@ rand_bytes(N) when N > 0 ->
         crypto:strong_rand_bytes(N)
     catch
         error:low_entropy ->
-            cowmachine:log(info, "Crypto is low on entropy", []),
+            cowmachine:log(#{ at => ?AT, level => info, text => "Crypto is low on entropy"}),
             list_to_binary([rand:uniform(256) || _X <- lists:seq(1, N)])
     end.
 
