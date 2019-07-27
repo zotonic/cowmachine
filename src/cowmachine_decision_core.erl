@@ -166,9 +166,9 @@ decision_flow(X, _TestResult, State, Context) when is_atom(X) ->
 decision_flow(X, _TestResult, State, Context) when is_integer(X), X < 500 ->
     respond(X, State, Context);
 decision_flow(X, TestResult, State, Context) when is_integer(X), X >= 500 ->
-    error_response(X, TestResult, State, Context);
-decision_flow({ErrCode, Reason}, _TestResult, State, Context) when is_integer(ErrCode) ->
-    error_response(ErrCode, Reason, State, Context).
+    error_response(X, TestResult, State, Context).
+% decision_flow({ErrCode, Reason}, _TestResult, State, Context) when is_integer(ErrCode) ->
+%     error_response(ErrCode, Reason, State, Context).
 
 
 %% "Service Available"
@@ -814,8 +814,8 @@ choose_transfer_encoding({1,1}, AccEncHdr, State, Context) ->
         <<"identity">> ->
             {Rs1, Rd1};
         ChosenEnc ->
-            Enc = lists:keyfind(ChosenEnc, 1, EncodingsProvided),
-            RdEnc = cowmachine_req:set_resp_transfer_encoding(Enc,Rd1),
+            Enc = {ChosenEnc, _} = lists:keyfind(ChosenEnc, 1, EncodingsProvided),
+            RdEnc = cowmachine_req:set_resp_transfer_encoding(Enc, Rd1),
             {Rs1, RdEnc}
     end;
 choose_transfer_encoding(_, _AccEncHdr, State, Context) ->

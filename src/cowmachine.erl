@@ -111,7 +111,6 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
     State1 = State#cmstate{
         controller = controller_http_error
     },
-    % Req1 = Req#{bindings => []},
     EnvInit = cowmachine_req:init_env(Req, Env),
     Context1 = cowmachine_req:set_env(EnvInit, Context),
     Context2 = cowmachine_req:set_metadata(controller_module_error, State#cmstate.controller, Context1),

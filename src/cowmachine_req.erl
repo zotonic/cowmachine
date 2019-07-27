@@ -274,13 +274,12 @@ version(Context) ->
 %% @doc Return the base uri of the request.
 -spec base_uri(context()) -> binary().
 base_uri(Context) ->
-    Req = req(Context),
     Scheme = scheme(Context),
     Uri = [
         z_convert:to_binary(Scheme),
         <<"://">>,
-        host(Req),
-        case port(Req) of
+        host(Context),
+        case port(Context) of
             80 when Scheme =:= http -> [];
             433 when Scheme =:= https -> [];
             Port -> [ $:, integer_to_binary(Port) ]
@@ -356,9 +355,9 @@ req_qs(Context) ->
     cowmachine_util:parse_qs(Qs).
 
 %% @doc Fetch all bindings from the dispatcher.
--spec path_info(context()) -> list({atom(), term()}).
+-spec path_info(context()) -> list( {atom(), any()} ).
 path_info(Context) ->
-    maps:get(bindings, req(Context)).
+    maps:to_list( maps:get(bindings, req(Context), #{}) ).
 
 %% @doc Fetch a request header, the header must be a lowercase binary.
 -spec get_req_header(binary(), context()) -> binary() | undefined.
@@ -477,13 +476,13 @@ resp_chosen_charset(Context) ->
     maps:get(cowmachine_resp_chosen_charset, env(Context)).
 
 %% @doc Set the transfer encoding
--spec set_resp_transfer_encoding(binary(), context()) -> context().
-set_resp_transfer_encoding(Enc, Context) when is_binary(Enc) ->
+-spec set_resp_transfer_encoding({binary(), function()}, context()) -> context().
+set_resp_transfer_encoding(Enc, Context) ->
     Env = env(Context),
     set_env(Env#{cowmachine_resp_transfer_encoding => Enc}, Context).
 
 %% @doc Get the transfer encoding.
--spec resp_transfer_encoding(context()) -> binary().
+-spec resp_transfer_encoding(context()) -> {binary(), function()} | undefined.
 resp_transfer_encoding(Context) ->
     maps:get(cowmachine_resp_transfer_encoding, env(Context)).
 
@@ -510,10 +509,8 @@ encode_content_1(<<"identity">>, Content) -> Content.
 %% @doc Set the 'redirect' flag, used during POST processing to check if a 303 should be returned.
 -spec set_resp_redirect(boolean() | binary(), context()) -> context().
 set_resp_redirect(Location, Context) when is_binary(Location) ->
-    Req = req(Context),
     Env = env(Context),
-    Req1 = set_resp_header(<<"location">>, Location, Req),
-    Context1 = set_req(Req1, Context),
+    Context1 = set_resp_header(<<"location">>, Location, Context),
     set_env(Env#{ cowmachine_resp_redirect => true }, Context1);
 set_resp_redirect(IsRedirect, Context) when is_boolean(IsRedirect) ->
     Env = env(Context),
