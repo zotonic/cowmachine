@@ -355,9 +355,9 @@ req_qs(Context) ->
     cowmachine_util:parse_qs(Qs).
 
 %% @doc Fetch all bindings from the dispatcher.
--spec path_info(context()) -> list( {atom(), any()} ).
+-spec path_info(context()) -> cowboy_router:bindings().
 path_info(Context) ->
-    maps:to_list( maps:get(bindings, req(Context), #{}) ).
+    maps:get(bindings, req(Context), #{}).
 
 %% @doc Fetch a request header, the header must be a lowercase binary.
 -spec get_req_header(binary(), context()) -> binary() | undefined.
@@ -365,7 +365,7 @@ get_req_header(H, Context) when is_binary(H) ->
     cowboy_req:header(H, req(Context)).
 
 %% @doc Fetch all request headers.
--spec get_req_headers(context()) -> binary() | undefined.
+-spec get_req_headers(context()) -> #{ binary() => binary() }.
 get_req_headers(Context) ->
     cowboy_req:headers(req(Context)).
 
@@ -445,7 +445,7 @@ get_resp_cookies(Context) ->
 %% @doc Fetch the value of a cookie.
 -spec get_cookie_value(binary(), context()) -> binary() | undefined.
 get_cookie_value(Name, Context) when is_binary(Name) ->
-    Cookies = maps:get(cowmachine_cookies, req(Context)),
+    Cookies = maps:get(cowmachine_cookies, env(Context)),
     proplists:get_value(Name, Cookies).
 
 %% @doc Fetch all cookies.
@@ -544,7 +544,7 @@ resp_body(Context) ->
     maps:get(cowmachine_resp_body, env(Context)).
 
 %% @doc Check if a response body has been set.
--spec has_resp_body(context()) -> context().
+-spec has_resp_body(context()) -> boolean().
 has_resp_body(Context) ->
     case maps:get(cowmachine_resp_body, env(Context)) of
         undefined -> false;
