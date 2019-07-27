@@ -94,8 +94,8 @@ send_response_code(Code, Parts, Context) ->
     send_response_bodyfun(cowmachine_req:resp_body(Context), Code, Parts, Context).
 
 
-send_response_bodyfun(undefined, Code, Parts, Context) ->
-    send_response_bodyfun(<<>>, Code, Parts, Context);
+% send_response_bodyfun(undefined, Code, Parts, Context) ->
+%     send_response_bodyfun(<<>>, Code, Parts, Context);
 send_response_bodyfun({device, IO}, Code, Parts, Context) ->
     Length = iodevice_size(IO),
     send_response_bodyfun({device, Length, IO}, Code, Parts, Context);

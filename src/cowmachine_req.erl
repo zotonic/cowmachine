@@ -438,7 +438,7 @@ set_resp_cookie(Key, Value, Options, Context) when is_binary(Key), is_binary(Val
     set_req(Req, Context).
 
 %% @doc Fetch all response cookies.
--spec get_resp_cookies(context()) -> [ binary() ].
+-spec get_resp_cookies(context()) -> [ {binary(),binary()} ].
 get_resp_cookies(Context) ->
     maps:to_list(maps:get(resp_cookies, req(Context))).
 
