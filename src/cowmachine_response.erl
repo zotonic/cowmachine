@@ -361,7 +361,7 @@ make_range_headers([{Start, Length}], Size, _ContentType) ->
                   {<<"content-length">>, integer_to_binary(Length)}],
     {HeaderList, none};
 make_range_headers(Parts, Size, ContentType) when is_list(Parts) ->
-    Boundary = to_hex(rand_bytes(8)),
+    Boundary = boundary(),
     Lengths = [
         iolist_size(part_preamble(Boundary, ContentType, Start, Length, Size)) + Length + 2
         || {Start,Length} <- Parts
@@ -380,6 +380,11 @@ part_preamble(Boundary, CType, Start, Length, Size) ->
         <<"/">>, integer_to_binary(Size),
      <<"\r\n\r\n">>].
 
+boundary() ->
+    A = rand:uniform(100000000),
+    B = rand:uniform(100000000),
+    <<(integer_to_binary(A))/binary, $_, (integer_to_binary(B))/binary>>.
+
 boundary(B)     -> <<"--", B/binary, "\r\n">>.
 end_boundary(B) -> <<"--", B/binary, "--\r\n">>.
 
@@ -396,35 +401,4 @@ iodevice_size(IoDevice) ->
     {ok, Size} = file:position(IoDevice, eof),
     {ok, 0} = file:position(IoDevice, bof),
     Size.
-
-%% @doc Return N random bytes. This falls back to the pseudo random version of rand_uniform 
-%% if strong_rand_bytes fails.
--spec rand_bytes(integer()) -> binary().
-rand_bytes(N) when N > 0 ->
-    try 
-        crypto:strong_rand_bytes(N)
-    catch
-        error:low_entropy ->
-            lager:info("Crypto is low on entropy"),
-            list_to_binary([rand:uniform(256) || _X <- lists:seq(1, N)])
-    end.
-
-
-% to_hex author is Bob Ippolito <bob@mochimedia.com>
-% copyright 2006 Mochi Media, Inc.
-
--spec to_hex(binary()) -> binary().
-to_hex(B) ->
-    iolist_to_binary(to_hex(B, [])).
-
-to_hex(<<>>, Acc) ->
-    lists:reverse(Acc);
-to_hex(<<C1:4, C2:4, Rest/binary>>, Acc) ->
-    to_hex(Rest, [hexdigit(C2), hexdigit(C1) | Acc]).
-
--spec hexdigit(integer()) -> char().
-hexdigit(C) when C >= 0, C =< 9 ->
-    C + $0;
-hexdigit(C) when C =< 15 ->
-    C + $a - 10.
 

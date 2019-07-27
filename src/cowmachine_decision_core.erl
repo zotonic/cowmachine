@@ -29,6 +29,7 @@
 -export([respond/3]).
 
 -include("cowmachine_state.hrl").
+-include("cowmachine_log.hrl").
 
 handle_request(#cmstate{ controller = Controller } = CmState, Context) ->
     try
@@ -715,7 +716,7 @@ should_have_req_body(Context) ->
     end.
 
 process_helper(_ContentTypeAccepted, #cmstate{ is_process_called = true } = State, Context) ->
-    lager:error("ERROR in process handling, process_helper called twice"),
+    cowmachine:log(#{ level => error, text => "ERROR in process handling, process_helper called twice."}, Context),
     {{error, internal_logic}, State, Context};
 process_helper(ContentTypeAccepted, State, Context) ->
     S1 = State#cmstate{ is_process_called = true },
