@@ -43,9 +43,11 @@ Cowmachine can be called from your Cowboy middleware:
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 execute(Req, Env) ->
     % Replace below with your own controller module and optionally wrap
-    % the request in your own request-context record.
-    Controller = mycontroller,
-    ControllerRequest = Req,
+    % the request in your own request-context record or map.
+    EnvController = Env#{
+        controller => mycontroller
+    },
+    RequestContext = cowmachine_req:init_context(Req, EnvController, #{}),
     % Set options for the cowmachine
     Options = #{
         on_welformed =>
@@ -55,7 +57,7 @@ execute(Req, Env) ->
             end
     },
     % Handle the request, returns updated Req and Env for next Cowboy middleware
-    cowmachine:request(Controller, ControllerRequest, Env, Options).
+    cowmachine:request(RequestContext, Options).
 ```
 
 Or just use the default Cowmachine middleware:

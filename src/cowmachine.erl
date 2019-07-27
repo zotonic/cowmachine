@@ -24,7 +24,7 @@
 
 -export([
     execute/2,
-    request/3
+    request/2
 ]).
 
 %% Internal logging interface
@@ -38,21 +38,22 @@
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
     when Req :: cowboy_req:req(),
          Env :: cowboy_middleware:env().
-execute(Req, #{ controller := Controller } = Env) ->
+execute(Req, #{ controller := _Controller } = Env) ->
     ContextEnv = maps:get(context, Env, undefined),
     Context = cowmachine_req:init_context(Req, Env, ContextEnv),
-    request(Controller, Context, #{}).
+    request(Context, #{}).
 
 
 %% @doc Handle a request, executes the cowmachine http states. Can be used by middleware
 %% functions to add some additional initialization of controllers or context.
--spec request(Controller::module(), Context, Options::map()) -> {ok, Req, Env} | {stop, Req}
+-spec request(Context, Options::map()) -> {ok, Req, Env} | {stop, Req}
     when Context :: cowmachine_req:context(),
          Req :: cowboy_req:req(),
          Env :: cowboy_middleware:env().
-request(Controller, Context, Options) ->
+request(Context, Options) ->
     Req = cowmachine_req:req(Context),
     Env = cowmachine_req:env(Context),
+    Controller = maps:get(controller, Env),
     case request_1(Controller, Req, Env, Options, Context) of
         {upgrade, UpgradeFun, _StateResult, ContextResult} ->
             Controller:UpgradeFun(ContextResult);
