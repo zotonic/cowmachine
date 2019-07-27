@@ -230,7 +230,7 @@ is_trusted_proxy(ip_whitelist, Peer) ->
         undefined ->
             z_ip_address:is_local(Peer)
     end;
-is_trusted_proxy(Whitelist, Peer) when is_list(Whitelist), is_binary(Whitelist) ->
+is_trusted_proxy(Whitelist, Peer) when is_list(Whitelist); is_binary(Whitelist) ->
     z_ip_address:ip_match(Peer, Whitelist).
 
 

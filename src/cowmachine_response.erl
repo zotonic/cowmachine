@@ -396,12 +396,12 @@ boundary() ->
 boundary(B)     -> <<"--", B/binary, "\r\n">>.
 end_boundary(B) -> <<"--", B/binary, "--\r\n">>.
 
-make_io(Atom) when is_atom(Atom) ->
-    atom_to_list(Atom);
 make_io(Integer) when is_integer(Integer) ->
-    integer_to_list(Integer);
-make_io(Io) when is_list(Io); is_binary(Io) ->
-    Io.
+    integer_to_list(Integer).
+% make_io(Atom) when is_atom(Atom) ->
+%     atom_to_list(Atom);
+% make_io(Io) when is_list(Io); is_binary(Io) ->
+%     Io.
 
 
 -spec iodevice_size(file:io_device()) -> integer().

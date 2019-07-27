@@ -595,7 +595,14 @@ decision(v3n11, State, Context) ->
                 true ->
                     case cowmachine_req:get_resp_header(<<"location">>, CtxStage1) of
                         undefined ->
-                            respond(500, "Response had set_resp_redirect but no Location header", SStage1, CtxStage1);
+                            cowmachine:log(#{
+                                level => error,
+                                at => ?AT,
+                                code => 500,
+                                controller => State#cmstate.controller,
+                                text => "Response had set_resp_redirect but no Location header."},
+                                Context),
+                            respond(500, SStage1, CtxStage1);
                         _ ->
                             respond(303, SStage1, CtxStage1)
                     end;

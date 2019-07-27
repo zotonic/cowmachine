@@ -72,7 +72,6 @@ sort_accept([]) -> [];
 sort_accept(List) ->
     lists:keysort(2, fix_order(List,1,[])).
 
-ensure_baselangs([]) -> [];
 ensure_baselangs(Langs) ->
     lists:foldl(
         fun

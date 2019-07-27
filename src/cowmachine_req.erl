@@ -132,24 +132,24 @@
 
 %% Response body, can be data, a file, device or streaming functions.
 -type resp_body() :: iodata()
-                   | {device, Size::pos_integer(), file:io_device()}
+                   | {device, Size::non_neg_integer(), file:io_device()}
                    | {device, file:io_device()}
-                   | {file, Size::pos_integer(), filename:filename()}
+                   | {file, Size::non_neg_integer(), filename:filename()}
                    | {file, filename:filename()}
                    | {stream, streamfun()}
-                   | {stream, Size::pos_integer(), streamfun()}
+                   | {stream, Size::non_neg_integer(), streamfun()}
                    | {writer, writerfun()}.
 
 %% Streaming function, repeatedly called to fetch the next chunk
--type streamfun() :: fun( () -> {streamdata(), streamfun_next()} ).
+-type streamfun() :: fun( ( non_neg_integer(), non_neg_integer() ) -> {streamdata(), streamfun_next()} ).
 -type streamfun_next() :: streamfun() | done.
 -type streamdata() :: iodata()
-                    | {file, pos_integer(), filename:filename()}
+                    | {file, non_neg_integer(), filename:filename()}
                     | {file, filename:filename()}.
 
 %% Writer function, calls output function till finished
--type writerfun() :: fun( (outputfun(), cowboy_req:req()) -> cowboy_req:req() ).
--type outputfun() :: fun( (iodata(), IsFinal::boolean(), cowboy_req:req()) -> cowboy_req:req() ).
+-type writerfun() :: fun( (outputfun(), context()) -> context() ).
+-type outputfun() :: fun( (iodata(), IsFinal::boolean(), context()) -> context() ).
 
 %% Media types for accepted and provided content types
 -type media_type() :: binary()
