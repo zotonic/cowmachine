@@ -523,12 +523,12 @@ has_req_body(Context) ->
 req_body(Context) ->
     req_body(128*1024, Context).
 
--spec req_body(pos_integer(), context()) -> {binary()|undefined, context()}.
+-spec req_body(non_neg_integer(), context()) -> {binary()|undefined, context()}.
 req_body(MaxLength, Context) when MaxLength > 0 ->
     Req = req(Context),
     Opts = #{
         length => MaxLength,
-        read_timeout => 10000
+        timeout => 10000
     },
     case cowboy_req:read_body(Req, Opts) of
         {ok, Body, Req2} ->
@@ -543,12 +543,12 @@ req_body(MaxLength, Context) when MaxLength > 0 ->
             {undefined, set_req(Req2, Context)}
     end.
 
--spec stream_req_body(integer(), context()) -> {ok|more, binary(), context()}.
+-spec stream_req_body(non_neg_integer(), context()) -> {ok|more, binary(), context()}.
 stream_req_body(ChunkSize, Context) ->
     Opts = #{
         % length => 1024*1024*1024,
         length => ChunkSize,
-        read_timeout => 10000
+        timeout => 10000
     },
     {Next, Chunk, Req1} = cowboy_req:read_body(req(Context), Opts),
     {Next, Chunk, set_req(Req1, Context)}.
