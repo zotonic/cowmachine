@@ -36,7 +36,7 @@ cowboy_options() ->
 
 %% Middleware export,  places this module in the request as controller.
 execute(Req, Env) ->
-    {ok, Req, Env#{ controller => ?MODULE } }.
+    {ok, Req, Env#{ cowmachine_controller => ?MODULE } }.
 
 %% Controller export
 process(<<"GET">>, _ContentType, _Accepted, Context) ->

@@ -176,10 +176,13 @@ init_env(Req, Env) ->
     Env1 = lists:foldl(
                 fun(K, Acc) -> maps:remove(K, Acc) end,
                 Env,
-                [ controller, controller_options, site, context ]),
+                [ site, context ]),
     EnvProxy = ensure_proxy_args(Req, Env1),
     EnvProxy#{
         cowmachine_site => maps:get(site, Env, undefined),
+
+        cowmachine_controller => maps:get(cowmachine_controller, Env),
+        cowmachine_controller_options => maps:get(cowmachine_controller_options, Env, []),
 
         cowmachine_resp_code => 500,
         cowmachine_resp_redirect => false,
@@ -192,10 +195,7 @@ init_env(Req, Env) ->
         cowmachine_disp_path => proplists:get_value('*', Bindings),
         cowmachine_range_ok => true,
 
-        cowmachine_cookies => cowboy_req:parse_cookies(Req),
-
-        cowmachine_controller => maps:get(controller, Env),
-        cowmachine_controller_options => maps:get(controller_options, Env, [])
+        cowmachine_cookies => cowboy_req:parse_cookies(Req)
     }.
 
 ensure_proxy_args(Req, Env) ->

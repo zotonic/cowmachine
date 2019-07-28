@@ -45,7 +45,7 @@ execute(Req, Env) ->
     % Replace below with your own controller module and optionally wrap
     % the request in your own request-context record or map.
     EnvController = Env#{
-        controller => mycontroller
+        cowmachine_controller => mycontroller
     },
     RequestContext = cowmachine_req:init_context(Req, EnvController, #{}),
     % Set options for the cowmachine
@@ -72,7 +72,7 @@ Or just use the default Cowmachine middleware:
         env => #{
             % If no dispatcher, default to `mycontroller` as the cowmachine
             % controller.
-            controller => mycontroller
+            cowmachine_controller => mycontroller
         }
     }.
 ```

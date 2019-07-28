@@ -1,9 +1,9 @@
 %% @author Marc Worrell <marc@worrell.nl>
-%% @copyright 2016 Marc Worrell
+%% @copyright 2016-2019 Marc Worrell
 %%
 %% @doc Cowmachine: webmachine middleware for Cowboy/Zotonic
 
-%% Copyright 2016-2018 Marc Worrell
+%% Copyright 2016-2019 Marc Worrell
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
     when Req :: cowboy_req:req(),
          Env :: cowboy_middleware:env().
-execute(Req, #{ controller := _Controller } = Env) ->
+execute(Req, #{ cowmachine_controller := _Controller } = Env) ->
     ContextEnv = maps:get(context, Env, undefined),
     Context = cowmachine_req:init_context(Req, Env, ContextEnv),
     request(Context, #{}).
@@ -53,7 +53,7 @@ execute(Req, #{ controller := _Controller } = Env) ->
 request(Context, Options) ->
     Req = cowmachine_req:req(Context),
     Env = cowmachine_req:env(Context),
-    Controller = maps:get(controller, Env),
+    Controller = maps:get(cowmachine_controller, Env),
     case request_1(Controller, Req, Env, Options, Context) of
         {upgrade, UpgradeFun, _StateResult, ContextResult} ->
             Controller:UpgradeFun(ContextResult);
