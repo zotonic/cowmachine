@@ -115,15 +115,15 @@ send_response_bodyfun({device, _Length, IO}, Code, Parts, Context) ->
     start_response_stream(Code, undefined, Writer, Context);
 send_response_bodyfun({file, Filename}, Code, Parts, Context) ->
     Length = filelib:file_size(Filename),
-    start_response_stream({file, Length, Filename}, Code, Parts, Context);
+    send_response_bodyfun({file, Length, Filename}, Code, Parts, Context);
 send_response_bodyfun({file, Length, Filename}, Code, all, Context) ->
     Writer = fun(FunContext) -> send_file_body(FunContext, Length, Filename, fin) end,
     start_response_stream(Code, Length, Writer, Context);
 send_response_bodyfun({file, _Length, Filename}, Code, Parts, Context) ->
     Writer = fun(FunContext) -> send_file_body_parts(FunContext, Parts, Filename) end,
     start_response_stream(Code, undefined, Writer, Context);
-send_response_bodyfun({stream, StreamFun}, Code, all, Context) ->
-    Writer = fun(FunContext) -> send_stream_body(FunContext, StreamFun) end,
+send_response_bodyfun({stream, Fun}, Code, all, Context) ->
+    Writer = fun(FunContext) -> send_stream_body(FunContext, Fun(0, all)) end,
     start_response_stream(Code, undefined, Writer, Context);
 send_response_bodyfun({stream, Size, Fun}, Code, all, Context) ->
     Writer = fun(FunContext) -> send_stream_body(FunContext, Fun(0, Size-1)) end,
@@ -134,35 +134,23 @@ send_response_bodyfun({writer, WriterFun}, Code, all, Context) ->
 send_response_bodyfun(Body, Code, all, Context) ->
     Length = iolist_size(Body),
     start_response_stream(Code, Length, Body, Context);
+send_response_bodyfun(undefined, Code, _Parts, Context) ->
+    start_response_stream(Code, 0, <<>>, Context);
 send_response_bodyfun(Body, Code, Parts, Context) ->
     Writer = fun(FunContext) -> send_parts(FunContext, Body, Parts) end,
     start_response_stream(Code, undefined, Writer, Context).
 
 
-start_response_stream(Code, Length, FunOrBody, Context) ->
+start_response_stream(Code, Length, Fun, Context) when is_function(Fun) ->
     Headers = response_headers(Code, Length, Context),
-    case cowmachine_req:method(Context) of
-        % <<"HEAD">> ->
-        %     % @todo Hack Alert!
-        %     % At the moment cowboy 2.0 doesn't allow any HEAD processing
-        %     % The normal cowboy reply would set the content-length to 0.
-        %     StreamID = maps:get(streamid, Req),
-        %     Pid = maps:get(pid, Req),
-        %     Pid ! {{Pid, StreamID}, {response, Code, Headers, <<>>}},
-        %     {ok, 0};
-        _Method when is_function(FunOrBody) ->
-            Req = cowmachine_req:req(Context),
-            Req1 = cowboy_req:stream_reply(Code, Headers, Req),
-            FunOrBody(cowmachine_req:set_req(Req1, Context));
-        _Method when FunOrBody =:= undefined ->
-            Req = cowmachine_req:req(Context),
-            Req1 = cowboy_req:reply(Code, Headers, <<>>, Req),
-            cowmachine_req:set_req(Req1, Context);
-        _Method when is_list(FunOrBody); is_binary(FunOrBody) ->
-            Req = cowmachine_req:req(Context),
-            Req1 = cowboy_req:reply(Code, Headers, FunOrBody, Req),
-            cowmachine_req:set_req(Req1, Context)
-    end.
+    Req = cowmachine_req:req(Context),
+    Req1 = cowboy_req:stream_reply(Code, Headers, Req),
+    Fun( cowmachine_req:set_req(Req1, Context) );
+start_response_stream(Code, Length, Body, Context) when is_list(Body); is_binary(Body) ->
+    Headers = response_headers(Code, Length, Context),
+    Req = cowmachine_req:req(Context),
+    Req1 = cowboy_req:reply(Code, Headers, Body, Req),
+    cowmachine_req:set_req(Req1, Context).
 
 %% @todo Add the cookies!
 response_headers(Code, Length, Context) ->
