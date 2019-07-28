@@ -1,9 +1,9 @@
 %% @author Marc Worrell <marc@worrell.nl>
-%% @copyright 2016 Marc Worrell
+%% @copyright 2016-2019 Marc Worrell
 %%
 %% @doc Middleware to update proxy settings in the Cowboy Req
 
-%% Copyright 2016 Marc Worrell
+%% Copyright 2016-2019 Marc Worrell
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 
 -export([
     execute/2,
-    update_req/1
+    update_env/2
 ]).
 
 -include_lib("cowlib/include/cow_parse.hrl").
@@ -35,26 +35,26 @@
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
     when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 execute(Req, Env) ->
-    {ok, update_req(Req), Env}.
+    {ok, Req, update_env(Req, Env)}.
 
--spec update_req(cowboy_req:req()) -> cowboy_req:req().
-update_req(Req) ->
+-spec update_env(cowboy_req:req(), cowboy_middleware:env()) -> cowboy_middleware:env().
+update_env(Req, Env) ->
     case cowboy_req:header(<<"forwarded">>, Req) of
         undefined ->
             case cowboy_req:header(<<"x-forwarded-for">>, Req) of
                 undefined ->
-                    update_req_direct(Req);
+                    update_env_direct(Req, Env);
                 XForwardedFor ->
-                    update_req_old_proxy(XForwardedFor, Req)
+                    update_env_old_proxy(XForwardedFor, Req, Env)
             end;
         Forwarded ->
-            update_req_proxy(Forwarded, Req)
+            update_env_proxy(Forwarded, Req, Env)
     end.
 
 %% @doc Fetch the metadata from the request itself
-update_req_direct(Req) ->
+update_env_direct(Req, Env) ->
     {Peer, _Port} = cowboy_req:peer(Req),
-    Req#{
+    Env#{
         cowmachine_proxy => false,
         cowmachine_forwarded_host => parse_host(maps:get(host, Req)),
         cowmachine_forwarded_port => cowboy_req:port(Req),
@@ -64,18 +64,18 @@ update_req_direct(Req) ->
     }.
 
 %% @doc Handle the "Forwarded" header, added by the proxy.
-update_req_proxy(Forwarded, Req) ->
+update_env_proxy(Forwarded, Req, Env) ->
     {Peer, _Port} = cowboy_req:peer(Req),
     case is_trusted_proxy(Peer) of
-        true -> 
+        true ->
             Props = parse_forwarded(Forwarded),
             {Remote, RemoteAdr} = case proplists:get_value(<<"for">>, Props) of
-                        undefined -> 
+                        undefined ->
                             {list_to_binary(inet_parse:ntoa(Peer)), Peer};
                         For ->
                             parse_for(For, Req)
                      end,
-            Proto = proplists:get_value(<<"proto">>, Props, <<"http">>), 
+            Proto = proplists:get_value(<<"proto">>, Props, <<"http">>),
             Host = case proplists:get_value(<<"host">>, Props) of
                         undefined -> cowboy_req:header(<<"host">>, Req);
                         XHost -> XHost
@@ -88,7 +88,7 @@ update_req_proxy(Forwarded, Req) ->
                             end;
                         XPort -> z_convert:to_integer(XPort)
                    end,
-            Req#{
+            Env#{
                 cowmachine_proxy => true,
                 cowmachine_forwarded_host => parse_host(Host),
                 cowmachine_forwarded_port => Port,
@@ -97,15 +97,15 @@ update_req_proxy(Forwarded, Req) ->
                 cowmachine_remote => RemoteAdr
             };
         false ->
-            cowmachine:log(#{ level => warning, 
+            cowmachine:log(#{ level => warning,
                               at => ?AT,
                               text => "Received proxy header 'Forwarded' from untrusted peer"
                             }, Req),
-            update_req_direct(Req)
+            update_env_direct(Req, Env)
     end.
 
 %% @doc Handle the "X-Forwarded-For" header, added by the proxy.
-update_req_old_proxy(XForwardedFor, Req) ->
+update_env_old_proxy(XForwardedFor, Req, Env) ->
     {Peer, _Port} = cowboy_req:peer(Req),
     case is_trusted_proxy(Peer) of
         true ->
@@ -127,7 +127,7 @@ update_req_old_proxy(XForwardedFor, Req) ->
                             end;
                         XPort -> z_convert:to_integer(XPort)
                    end,
-            Req#{
+            Env#{
                 cowmachine_proxy => true,
                 cowmachine_forwarded_host => parse_host(Host),
                 cowmachine_forwarded_port => Port,
@@ -136,12 +136,12 @@ update_req_old_proxy(XForwardedFor, Req) ->
                 cowmachine_remote => RemoteAdr
             };
         false ->
-            cowmachine:log(#{ level => warning, 
+            cowmachine:log(#{ level => warning,
                               at => ?AT,
                               text => "Received proxy header 'X-Forwarded-For' from untrusted peer"
                             }, Req),
 
-            update_req_direct(Req)
+            update_env_direct(Req, Env)
 
     end.
 
@@ -230,7 +230,7 @@ is_trusted_proxy(ip_whitelist, Peer) ->
         undefined ->
             z_ip_address:is_local(Peer)
     end;
-is_trusted_proxy(Whitelist, Peer) when is_list(Whitelist), is_binary(Whitelist) ->
+is_trusted_proxy(Whitelist, Peer) when is_list(Whitelist); is_binary(Whitelist) ->
     z_ip_address:ip_match(Peer, Whitelist).
 
 

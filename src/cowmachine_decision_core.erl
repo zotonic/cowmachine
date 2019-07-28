@@ -166,9 +166,9 @@ decision_flow(X, _TestResult, State, Context) when is_atom(X) ->
 decision_flow(X, _TestResult, State, Context) when is_integer(X), X < 500 ->
     respond(X, State, Context);
 decision_flow(X, TestResult, State, Context) when is_integer(X), X >= 500 ->
-    error_response(X, TestResult, State, Context);
-decision_flow({ErrCode, Reason}, _TestResult, State, Context) when is_integer(ErrCode) ->
-    error_response(ErrCode, Reason, State, Context).
+    error_response(X, TestResult, State, Context).
+% decision_flow({ErrCode, Reason}, _TestResult, State, Context) when is_integer(ErrCode) ->
+%     error_response(ErrCode, Reason, State, Context).
 
 
 %% "Service Available"
@@ -595,7 +595,14 @@ decision(v3n11, State, Context) ->
                 true ->
                     case cowmachine_req:get_resp_header(<<"location">>, CtxStage1) of
                         undefined ->
-                            respond(500, "Response had set_resp_redirect but no Location header", SStage1, CtxStage1);
+                            cowmachine:log(#{
+                                level => error,
+                                at => ?AT,
+                                code => 500,
+                                controller => State#cmstate.controller,
+                                text => "Response had set_resp_redirect but no Location header."},
+                                Context),
+                            respond(500, SStage1, CtxStage1);
                         _ ->
                             respond(303, SStage1, CtxStage1)
                     end;
@@ -807,8 +814,8 @@ choose_transfer_encoding({1,1}, AccEncHdr, State, Context) ->
         <<"identity">> ->
             {Rs1, Rd1};
         ChosenEnc ->
-            Enc = lists:keyfind(ChosenEnc, 1, EncodingsProvided),
-            RdEnc = cowmachine_req:set_resp_transfer_encoding(Enc,Rd1),
+            Enc = {ChosenEnc, _} = lists:keyfind(ChosenEnc, 1, EncodingsProvided),
+            RdEnc = cowmachine_req:set_resp_transfer_encoding(Enc, Rd1),
             {Rs1, RdEnc}
     end;
 choose_transfer_encoding(_, _AccEncHdr, State, Context) ->

@@ -2,9 +2,7 @@
 
 -record(cmstate, {
     % Cowboy state
-    env :: cowboy_middleware:env(),
     controller :: atom(),
-
     is_process_called = false :: boolean(),
 
     % Memo cache for controller calls

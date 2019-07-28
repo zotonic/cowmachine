@@ -1,9 +1,9 @@
 %% @author Marc Worrell <marc@worrell.nl>
-%% @copyright 2016 Marc Worrell
+%% @copyright 2016-2019 Marc Worrell
 %%
 %% @doc Cowmachine: webmachine middleware for Cowboy/Zotonic
 
-%% Copyright 2016-2018 Marc Worrell
+%% Copyright 2016-2019 Marc Worrell
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 
 -export([
     execute/2,
-    request/4
+    request/2
 ]).
 
 %% Internal logging interface
@@ -38,24 +38,22 @@
 -spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
     when Req :: cowboy_req:req(),
          Env :: cowboy_middleware:env().
-execute(Req, #{ controller := Controller } = Env) ->
-    case maps:get(context, Env, undefined) of
-        undefined ->
-            request(Controller, Req, Env, #{});
-        Context ->
-            Context1 = cowmachine_req:set_req(Req, Context),
-            request(Controller, Context1, Env, #{})
-    end.
+execute(Req, #{ cowmachine_controller := _Controller } = Env) ->
+    ContextEnv = maps:get(cowmachine_context, Env, undefined),
+    Context = cowmachine_req:init_context(Req, Env, ContextEnv),
+    request(Context, #{}).
 
 
 %% @doc Handle a request, executes the cowmachine http states. Can be used by middleware
 %% functions to add some additional initialization of controllers or context.
--spec request(Controller::module(), Context, Env, Options::map()) -> {ok, Req, Env} | {stop, Req}
-    when Context :: cowboy_req:req() | tuple(),
+-spec request(Context, Options::map()) -> {ok, Req, Env} | {stop, Req}
+    when Context :: cowmachine_req:context(),
          Req :: cowboy_req:req(),
          Env :: cowboy_middleware:env().
-request(Controller, Context, Env, Options) ->
+request(Context, Options) ->
     Req = cowmachine_req:req(Context),
+    Env = cowmachine_req:env(Context),
+    Controller = maps:get(cowmachine_controller, Env),
     case request_1(Controller, Req, Env, Options, Context) of
         {upgrade, UpgradeFun, _StateResult, ContextResult} ->
             Controller:UpgradeFun(ContextResult);
@@ -65,17 +63,17 @@ request(Controller, Context, Env, Options) ->
 
 request_1(Controller, Req, Env, Options, Context) ->
     State = #cmstate{
-        env = Env,
         controller = Controller,
         cache = #{},
         options = Options
     },
     Site = maps:get(site, Env, undefined),
     try
-        Context1 = cowmachine_req:set_req(cowmachine_req:init_req(Req, Env), Context),
+        EnvInit = cowmachine_req:init_env(Req, Env),
+        Context1 = cowmachine_req:set_env(EnvInit, Context),
         case cowmachine_decision_core:handle_request(State, Context1) of
             {_Finish, _StateResult, ContextResult} ->
-                cowmachine_response:send_response(ContextResult, Env);
+                cowmachine_response:send_response(ContextResult);
             {upgrade, UpgradeFun, _StateResult, ContextResult} ->
                 {upgrade, UpgradeFun, _StateResult, ContextResult}
         end
@@ -113,15 +111,15 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
     State1 = State#cmstate{
         controller = controller_http_error
     },
-    % Req1 = Req#{bindings => []},
-    Context1 = cowmachine_req:set_req(cowmachine_req:init_req(Req, Env), Context),
+    EnvInit = cowmachine_req:init_env(Req, Env),
+    Context1 = cowmachine_req:set_env(EnvInit, Context),
     Context2 = cowmachine_req:set_metadata(controller_module_error, State#cmstate.controller, Context1),
     Context3 = cowmachine_req:set_metadata(http_status_code, ResponseCode, Context2),
     Context4 = cowmachine_req:set_metadata(error_reason, Reason, Context3),
     try
         {_Finish, _StateResult, ContextResult} = cowmachine_decision_core:handle_request(State1, Context4),
         ContextRespCode = cowmachine_req:set_response_code(ResponseCode, ContextResult),
-        cowmachine_response:send_response(ContextRespCode, Env)
+        cowmachine_response:send_response(ContextRespCode)
     catch
         throw:{stop_request, Code, Reason} ->
             log(#{ at => ?AT, level => warning,

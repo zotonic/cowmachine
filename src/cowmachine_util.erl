@@ -28,13 +28,14 @@
 -export([parse_header/1]).
 -export([normalize_content_type/1]).
 -export([format_content_type/1]).
-
+-export([quoted_string/1]).
+-export([split_quoted_strings/1]).
 
 %% @doc Parse the HTTP date (IMF-fixdate, rfc850, asctime).
 -spec convert_request_date(binary()) -> calendar:datetime().
 convert_request_date(Date) ->
     try
-        cowdate:parse_date(Date)
+        cow_date:parse_date(Date)
     catch
         error:_ -> bad_date
     end.
@@ -330,3 +331,40 @@ unquote_header(<<$\\, C, Rest/binary>>, Acc) ->
 unquote_header(<<C, Rest/binary>>, Acc) ->
     unquote_header(Rest, <<Acc/binary, C>>).
 
+
+-spec quoted_string( binary() ) -> binary().
+quoted_string(<<$", _Rest/binary>> = Str) ->
+    Str;
+quoted_string(Str) ->
+    escape_quotes(Str, <<$">>).                % Initialize Acc with opening quote
+
+escape_quotes(<<>>, Acc) ->
+    <<Acc/binary, $">>;                              % Append final quote
+escape_quotes(<<$\\, Char, Rest/binary>>, Acc) ->
+    escape_quotes(Rest, <<Acc/binary, $\\, Char>>);  % Any quoted char should be skipped
+escape_quotes(<<$", Rest/binary>>, Acc) ->
+    escape_quotes(Rest, <<Acc/binary, $\\, $">>);    % Unquoted quotes should be escaped
+escape_quotes(<<Char, Rest/binary>>, Acc) ->
+    escape_quotes(Rest, <<Acc/binary, Char>>).
+
+
+-spec split_quoted_strings( binary() ) -> list( binary() ).
+split_quoted_strings(Str) ->
+    split_quoted_strings(Str, []).
+
+split_quoted_strings(<<>>, Acc) ->
+    lists:reverse(Acc);
+split_quoted_strings(<<$", Rest/binary>>, Acc) ->
+    {Str, Cont} = unescape_quoted_string(Rest, <<>>),
+    split_quoted_strings(Cont, [Str | Acc]);
+split_quoted_strings(<<_Skip, Rest/binary>>, Acc) ->
+    split_quoted_strings(Rest, Acc).
+
+unescape_quoted_string(<<>>, Acc) ->
+    {Acc, <<>>};
+unescape_quoted_string(<<$\\, Char, Rest/binary>>, Acc) -> % Any quoted char should be unquoted
+    unescape_quoted_string(Rest, <<Acc/binary, Char>>);
+unescape_quoted_string(<<$", Rest/binary>>, Acc) ->        % Quote indicates end of this string
+    {Acc, Rest};
+unescape_quoted_string(<<Char, Rest/binary>>, Acc) ->
+    unescape_quoted_string(Rest, <<Acc/binary, Char>>).

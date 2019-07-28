@@ -8,7 +8,7 @@
 -spec upgrade(atom(), cowmachine_req:context()) -> {ok, cowboy_req:req(), cowboy_middleware:env()}.
 upgrade(Handler, Context) ->
     Req = cowmachine_req:req(Context),
-    Env = #{},
+    Env = cowmachine_req:env(Context),
     Opts = #{
         idle_timeout => infinity
     },
