@@ -39,7 +39,7 @@
     when Req :: cowboy_req:req(),
          Env :: cowboy_middleware:env().
 execute(Req, #{ cowmachine_controller := _Controller } = Env) ->
-    ContextEnv = maps:get(context, Env, undefined),
+    ContextEnv = maps:get(cowmachine_context, Env, undefined),
     Context = cowmachine_req:init_context(Req, Env, ContextEnv),
     request(Context, #{}).
 
