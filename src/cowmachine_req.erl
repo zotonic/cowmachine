@@ -172,7 +172,7 @@
 %% @doc Set some intial metadata in the cowboy req
 -spec init_env(cowboy_req:req(), cowboy_middleware:env()) -> cowboy_middleware:env().
 init_env(Req, Env) ->
-    Bindings = maps:get(bindings, Req, []),
+    Bindings = maps:get(bindings, Req, #{}),
     Env1 = lists:foldl(
                 fun(K, Acc) -> maps:remove(K, Acc) end,
                 Env,
@@ -192,7 +192,7 @@ init_env(Req, Env) ->
         cowmachine_resp_chosen_charset => undefined,
         cowmachine_resp_body => undefined,
 
-        cowmachine_disp_path => proplists:get_value('*', Bindings),
+        cowmachine_disp_path => maps:get('*', Bindings, undefined),
         cowmachine_range_ok => true,
 
         cowmachine_cookies => cowboy_req:parse_cookies(Req)
