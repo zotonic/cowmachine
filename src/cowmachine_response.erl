@@ -131,11 +131,11 @@ send_response_bodyfun({stream, Size, Fun}, Code, all, Context) ->
 send_response_bodyfun({writer, WriterFun}, Code, all, Context) ->
     Writer = fun(FunContext) -> send_writer_body(FunContext, WriterFun) end,
     start_response_stream(Code, undefined, Writer, Context);
+send_response_bodyfun(undefined, Code, _Parts, Context) ->
+    start_response_stream(Code, 0, <<>>, Context);
 send_response_bodyfun(Body, Code, all, Context) ->
     Length = iolist_size(Body),
     start_response_stream(Code, Length, Body, Context);
-send_response_bodyfun(undefined, Code, _Parts, Context) ->
-    start_response_stream(Code, 0, <<>>, Context);
 send_response_bodyfun(Body, Code, Parts, Context) ->
     Writer = fun(FunContext) -> send_parts(FunContext, Body, Parts) end,
     start_response_stream(Code, undefined, Writer, Context).
