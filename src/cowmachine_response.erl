@@ -169,7 +169,7 @@ send_response_bodyfun(Body, Code, all, Context) ->
     Req1 = cowboy_req:reply(Code, Headers, Body, Req),
     cowmachine_req:set_req(Req1, Context);
 send_response_bodyfun(Body, Code, Parts, Context) ->
-    Headers = response_headers(Code, iolist_size(Body), Context),
+    Headers = response_headers(Context),
     Req = cowmachine_req:req(Context),
     Req1 = cowboy_req:stream_reply(Code, Headers, Req),
     Context1 = cowmachine_req:set_req(Req1, Context),
@@ -236,6 +236,14 @@ response_headers(Code, Length, Context) ->
         <<"server">> => server_header(),
         <<"date">> => cowboy_clock:rfc1123()
     }.
+
+response_headers(Context) ->
+    Hdrs = cowmachine_req:get_resp_headers(Context),
+    Hdrs#{
+        <<"server">> => server_header(),
+        <<"date">> => cowboy_clock:rfc1123()
+    }.
+
 
 % With continuation
 send_stream_body({<<>>, done}, Context) ->
@@ -309,13 +317,13 @@ send_file_body_parts(Context, Parts, Filename) ->
 
 -spec send_parts( cowmachine_req:context(), cowmachine_req:parts(), binary() ) -> cowmachine_req:context().
 send_parts(Context, {[{From,Length}], _Size, _Boundary, _ContentType}, Bin) ->
-    send_chunk(Context, binary:part(Bin,From,Length), nofin);
+    send_chunk(Context, binary:part(Bin,From,Length), fin);
 send_parts(Context, {Parts, Size, Boundary, ContentType}, Bin) ->
     lists:foreach(
         fun({From,Length}) ->
             Part = [
                 part_preamble(Boundary, ContentType, From, Length, Size),
-                Bin,
+                binary:part(Bin,From,Length),
                 <<"\r\n">>
             ],
             send_chunk(Context, Part, nofin)
@@ -374,7 +382,7 @@ get_range(Context) ->
 -spec parse_range_request(binary()|undefined) -> undefined | [{integer()|none,integer()|none}].
 parse_range_request(<<"bytes=", RangeString/binary>>) ->
     try
-        Ranges = binary:split(RangeString, <<",">>, [global]),
+        Ranges = binary:split(binary:replace(RangeString, <<" ">>, <<>>, [global]), <<",">>, [global]),
         lists:map(
             fun (<<"-", V/binary>>)  ->
                    {none, binary_to_integer(V)};
