@@ -134,19 +134,28 @@
 -type resp_body() :: iodata()
                    | {device, Size::non_neg_integer(), file:io_device()}
                    | {device, file:io_device()}
-                   | {file, Size::non_neg_integer(), filename:filename()}
-                   | {file, filename:filename()}
+                   | {file, Size::non_neg_integer(), file:filename_all()}
+                   | {file, file:filename_all()}
+                   | {stream, {streamdata(), streamfun()}}
+                   | {stream, Size::non_neg_integer(), {streamdata(), streamfun()}}
                    | {stream, streamfun()}
                    | {stream, Size::non_neg_integer(), streamfun()}
                    | {writer, writerfun()}
                    | undefined.
 
 %% Streaming function, repeatedly called to fetch the next chunk
--type streamfun() :: fun( ( non_neg_integer(), non_neg_integer() | all ) -> {streamdata(), streamfun_next()} ).
--type streamfun_next() :: streamfun() | done.
+-type streamfun() :: fun( ( parts(), context() ) -> {streamdata(), streamfun_next()} )
+                   | fun( ( context() ) -> {streamdata(), streamfun_next()} )
+                   | fun( () -> {streamdata(), streamfun_next()} )
+                   | done.
+
+-type streamfun_next() :: fun( ( context() ) -> {streamdata(), streamfun_next()} )
+                        | fun( () -> {streamdata(), streamfun_next()} )
+                        | done.
+
 -type streamdata() :: iodata()
-                    | {file, non_neg_integer(), filename:filename()}
-                    | {file, filename:filename()}.
+                    | {file, non_neg_integer(), file:filename_all()}
+                    | {file, file:filename_all()}.
 
 %% Writer function, calls output function till finished
 -type writerfun() :: fun( (outputfun(), context()) -> context() ).
@@ -158,6 +167,10 @@
                     | {binary(), binary()}
                     | {binary(), list( {binary(), binary()} )}.
 
+-type parts() :: all
+               | {ranges(), Size :: non_neg_integer(), Boundary :: binary(), ContentType :: binary()}.
+-type ranges() :: [ {Offset :: non_neg_integer(), Length :: non_neg_integer()} ].
+
 -export_type([
     context/0,
     context_map/0,
@@ -166,7 +179,9 @@
     streamfun/0,
     streamfun_next/0,
     streamdata/0,
-    media_type/0
+    media_type/0,
+    parts/0,
+    ranges/0
 ]).
 
 %% @doc Set some intial metadata in the cowboy req
