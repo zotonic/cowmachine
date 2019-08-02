@@ -105,52 +105,112 @@ send_response_bodyfun({device, Length, IO}, Code, all, Context) ->
                 _ = file:close(IO),
                 FunContext
              end,
-    start_response_stream(Code, Length, Writer, Context);
+    start_response_stream(Code, Length, Writer, all, Context);
 send_response_bodyfun({device, _Length, IO}, Code, Parts, Context) ->
-    Writer = fun(FunContext) ->
-                FunContext1 = send_device_body_parts(FunContext, Parts, IO),
+    Writer = fun(FunContext, WParts) ->
+                FunContext1 = send_device_body_parts(FunContext, WParts, IO),
                 _ = file:close(IO),
                 FunContext1
              end,
-    start_response_stream(Code, undefined, Writer, Context);
+    start_response_stream(Code, undefined, Writer, Parts, Context);
+% File
 send_response_bodyfun({file, Filename}, Code, Parts, Context) ->
     Length = filelib:file_size(Filename),
     send_response_bodyfun({file, Length, Filename}, Code, Parts, Context);
 send_response_bodyfun({file, Length, Filename}, Code, all, Context) ->
     Writer = fun(FunContext) -> send_file_body(FunContext, Length, Filename, fin) end,
-    start_response_stream(Code, Length, Writer, Context);
+    start_response_stream(Code, Length, Writer, all, Context);
 send_response_bodyfun({file, _Length, Filename}, Code, Parts, Context) ->
-    Writer = fun(FunContext) -> send_file_body_parts(FunContext, Parts, Filename) end,
-    start_response_stream(Code, undefined, Writer, Context);
-send_response_bodyfun({stream, Fun}, Code, all, Context) ->
-    Writer = fun(FunContext) -> send_stream_body(FunContext, Fun(0, all)) end,
-    start_response_stream(Code, undefined, Writer, Context);
-send_response_bodyfun({stream, Size, Fun}, Code, all, Context) ->
-    Writer = fun(FunContext) -> send_stream_body(FunContext, Fun(0, Size-1)) end,
-    start_response_stream(Code, undefined, Writer, Context);
+    Writer = fun(FunContext, WParts) -> send_file_body_parts(FunContext, WParts, Filename) end,
+    start_response_stream(Code, undefined, Writer, Parts, Context);
+% Stream without size
+send_response_bodyfun({stream, InitialStream}, Code, Parts, Context) ->
+    start_response_stream(Code, undefined, InitialStream, Parts, Context);
+send_response_bodyfun({stream, Size, InitialStream}, Code, Parts, Context) ->
+    start_response_stream(Code, Size, InitialStream, Parts, Context);
+% send_response_bodyfun({stream, {_Data, Fun} = Initial, Code, Parts, Context) when is_function(Fun, 1) ->
+%     Writer = fun(FunContext) -> send_stream_body(FunContext, Fun(Parts)) end,
+%     start_response_stream(Code, undefined, Writer, Context);
+% % Stream without parts - remove parts response header
+% send_response_bodyfun({stream, Fun}, Code, Parts, Context) when is_function(Fun, 0) ->
+%     Writer = fun(FunContext) -> send_stream_body(FunContext, Fun()) end,
+%     start_response_stream(Code, undefined, Writer, Context);
+% send_response_bodyfun({stream, Size, Fun}, Code, all, Context) when is_function(Fun, 0) ->
+%     Writer = fun(FunContext) -> send_stream_body(FunContext, Fun()) end,
+%     start_response_stream(Code, undefined, Writer, Context);
+% % Stream with parts (managed by the streaming function)
+% send_response_bodyfun({stream, Fun}, Code, Parts, Context) when is_function(Fun, 1) ->
+%     Writer = fun(FunContext) -> send_stream_body(FunContext, Fun(Parts)) end,
+%     start_response_stream(Code, undefined, Writer, Context);
+% send_response_bodyfun({stream, Size, Fun}, Code, Parts, Context) when is_function(Fun, 1) ->
+%     Writer = fun(FunContext) -> send_stream_body(FunContext, Fun(Parts) end,
+%     start_response_stream(Code, undefined, Writer, Context);
+% Writer
 send_response_bodyfun({writer, WriterFun}, Code, all, Context) ->
     Writer = fun(FunContext) -> send_writer_body(FunContext, WriterFun) end,
-    start_response_stream(Code, undefined, Writer, Context);
-send_response_bodyfun(undefined, Code, _Parts, Context) ->
-    start_response_stream(Code, 0, <<>>, Context);
+    start_response_stream(Code, undefined, Writer, all, Context);
+% Data
+send_response_bodyfun(undefined, Code, Parts, Context) ->
+    send_response_bodyfun(<<>>, Code, Parts, Context);
 send_response_bodyfun(Body, Code, all, Context) ->
     Length = iolist_size(Body),
-    start_response_stream(Code, Length, Body, Context);
-send_response_bodyfun(Body, Code, Parts, Context) ->
-    Writer = fun(FunContext) -> send_parts(FunContext, Body, Parts) end,
-    start_response_stream(Code, undefined, Writer, Context).
-
-
-start_response_stream(Code, Length, Fun, Context) when is_function(Fun) ->
-    Headers = response_headers(Code, Length, Context),
-    Req = cowmachine_req:req(Context),
-    Req1 = cowboy_req:stream_reply(Code, Headers, Req),
-    Fun( cowmachine_req:set_req(Req1, Context) );
-start_response_stream(Code, Length, Body, Context) when is_list(Body); is_binary(Body) ->
     Headers = response_headers(Code, Length, Context),
     Req = cowmachine_req:req(Context),
     Req1 = cowboy_req:reply(Code, Headers, Body, Req),
-    cowmachine_req:set_req(Req1, Context).
+    cowmachine_req:set_req(Req1, Context);
+send_response_bodyfun(Body, Code, Parts, Context) ->
+    Headers = response_headers(Code, iolist_size(Body), Context),
+    Req = cowmachine_req:req(Context),
+    Req1 = cowboy_req:stream_reply(Code, Headers, Req),
+    Context1 = cowmachine_req:set_req(Req1, Context),
+    send_parts(Context1, Parts, iolist_to_binary(Body)).
+
+
+start_response_stream(Code, Length, InitialStream, Parts, Context) ->
+    {Code1, Context1, Parts1} = case is_streaming_range(InitialStream) of
+        false when Parts =/= all ->
+            % Drop range response header
+            C1 = cowmachine_req:remove_resp_header(<<"accept-ranges">>, Context),
+            C2 = cowmachine_req:remove_resp_header(<<"content-range">>, C1),
+            C3 = cowmachine_req:remove_resp_header(<<"content-length">>, C2),
+            {200, C3, all};
+        false ->
+            {Code, Context, all};
+        true ->
+            {Code, Context, Parts}
+    end,
+    Headers = response_headers(Code1, Length, Context1),
+    Req = cowmachine_req:req(Context1),
+    Req1 = cowboy_req:stream_reply(Code, Headers, Req),
+    Context2 = cowmachine_req:set_req(Req1, Context1),
+    FirstHunk = case InitialStream of
+        {InitialData, InitialFun} ->
+            {InitialData, stream_initial_fun(InitialFun, Parts1)};
+        InitialFun ->
+            {<<>>, stream_initial_fun(InitialFun, Parts1)}
+    end,
+    send_stream_body(Context2, FirstHunk).
+
+stream_initial_fun(F, Parts) when is_function(F, 2) ->
+    fun(Ctx) -> F(Ctx, Parts) end;
+stream_initial_fun(F, _Parts) when is_function(F) ->
+    F;
+stream_initial_fun(done, _Parts) ->
+    done.
+
+
+%% Check if we support ranges on the data stream (body or function)
+is_streaming_range(done) -> true;
+is_streaming_range(Fun) when is_function(Fun, 2) -> true;
+is_streaming_range(Fun) when is_function(Fun) -> false;
+is_streaming_range({<<>>, Fun}) when is_function(Fun, 2) ->
+    % Only support ranges if the initial binary is a range, until we
+    % add functionality to stream the data from the binary in accordance
+    % with the requested ranges (and update the range given to the range function)
+    true;
+is_streaming_range({_, Fun}) when is_function(Fun) -> false;
+is_streaming_range({_, done}) -> false.
+
 
 %% @todo Add the cookies!
 response_headers(Code, Length, Context) ->
@@ -188,6 +248,8 @@ send_stream_body(Context, {[], Next}) ->
 send_stream_body(Context, {Data, Next}) ->
     Context1 = send_chunk(Context, Data, nofin),
     send_stream_body(Context1, Next());
+send_stream_body(Context, Fun) when is_function(Fun, 1) ->
+    send_stream_body(Context, Fun(Context));
 send_stream_body(Context, Fun) when is_function(Fun, 0) ->
     send_stream_body(Context, Fun()).
 
@@ -217,6 +279,7 @@ send_device_body_parts(Context, {Parts, Size, Boundary, ContentType}, IO) ->
         Parts),
     send_chunk(Context, end_boundary(Boundary), fin).
 
+-spec send_file_body_parts( cowmachine_req:context(), cowmachine_req:parts(), file:filename_all() ) -> ok | {error, term()}.
 send_file_body_parts(Context, Parts, Filename) ->
     {ok, FD} = file:open(Filename, [raw,binary]),
     try
@@ -225,9 +288,10 @@ send_file_body_parts(Context, Parts, Filename) ->
         file:close(FD)
     end.
 
-send_parts(Context, Bin, {[{From,Length}], _Size, _Boundary, _ContentType}) ->
+-spec send_parts( cowmachine_req:context(), cowmachine_req:parts(), binary() ) -> cowmachine_req:context().
+send_parts(Context, {[{From,Length}], _Size, _Boundary, _ContentType}, Bin) ->
     send_chunk(Context, binary:part(Bin,From,Length), nofin);
-send_parts(Context, Bin, {Parts, Size, Boundary, ContentType}) ->
+send_parts(Context, {Parts, Size, Boundary, ContentType}, Bin) ->
     lists:foreach(
         fun({From,Length}) ->
             Part = [
