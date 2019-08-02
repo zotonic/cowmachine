@@ -103,14 +103,14 @@ send_response_bodyfun({device, Length, IO}, Code, all, Context) ->
     Writer = fun(FunContext) ->
                 send_device_body(FunContext, Length, IO),
                 _ = file:close(IO),
-                FunContext
+                {fin, FunContext}
              end,
     start_response_stream(Code, Length, Writer, all, Context);
 send_response_bodyfun({device, _Length, IO}, Code, Parts, Context) ->
     Writer = fun(FunContext, WParts) ->
                 FunContext1 = send_device_body_parts(FunContext, WParts, IO),
                 _ = file:close(IO),
-                FunContext1
+                {fin, FunContext1}
              end,
     start_response_stream(Code, undefined, Writer, Parts, Context);
 % File
@@ -118,16 +118,24 @@ send_response_bodyfun({file, Filename}, Code, Parts, Context) ->
     Length = filelib:file_size(Filename),
     send_response_bodyfun({file, Length, Filename}, Code, Parts, Context);
 send_response_bodyfun({file, Length, Filename}, Code, all, Context) ->
-    Writer = fun(FunContext) -> send_file_body(FunContext, Length, Filename, fin) end,
+    Writer = fun(FunContext) ->
+        send_file_body(FunContext, Length, Filename, fin)
+    end,
     start_response_stream(Code, Length, Writer, all, Context);
 send_response_bodyfun({file, _Length, Filename}, Code, Parts, Context) ->
-    Writer = fun(FunContext, WParts) -> send_file_body_parts(FunContext, WParts, Filename) end,
+    Writer = fun(FunContext, WParts) ->
+        send_file_body_parts(FunContext, WParts, Filename)
+    end,
     start_response_stream(Code, undefined, Writer, Parts, Context);
-% Stream without size
-send_response_bodyfun({stream, InitialStream}, Code, Parts, Context) ->
+% Stream functions with continuation
+send_response_bodyfun({stream, {_, _} = InitialStream}, Code, Parts, Context) ->
     start_response_stream(Code, undefined, InitialStream, Parts, Context);
-send_response_bodyfun({stream, Size, InitialStream}, Code, Parts, Context) ->
+send_response_bodyfun({stream, Size, {_, _} = InitialStream}, Code, Parts, Context) ->
     start_response_stream(Code, Size, InitialStream, Parts, Context);
+send_response_bodyfun({stream, StreamFun}, Code, Parts, Context) when is_function(StreamFun) ->
+    start_response_stream(Code, undefined, {<<>>, StreamFun}, Parts, Context);
+send_response_bodyfun({stream, Size, StreamFun}, Code, Parts, Context) when is_function(StreamFun) ->
+    start_response_stream(Code, Size, {<<>>, StreamFun}, Parts, Context);
 % send_response_bodyfun({stream, {_Data, Fun} = Initial, Code, Parts, Context) when is_function(Fun, 1) ->
 %     Writer = fun(FunContext) -> send_stream_body(FunContext, Fun(Parts)) end,
 %     start_response_stream(Code, undefined, Writer, Context);
@@ -147,7 +155,9 @@ send_response_bodyfun({stream, Size, InitialStream}, Code, Parts, Context) ->
 %     start_response_stream(Code, undefined, Writer, Context);
 % Writer
 send_response_bodyfun({writer, WriterFun}, Code, all, Context) ->
-    Writer = fun(FunContext) -> send_writer_body(FunContext, WriterFun) end,
+    Writer = fun(FunContext) ->
+        send_writer_body(FunContext, WriterFun)
+    end,
     start_response_stream(Code, undefined, Writer, all, Context);
 % Data
 send_response_bodyfun(undefined, Code, Parts, Context) ->
@@ -187,9 +197,9 @@ start_response_stream(Code, Length, InitialStream, Parts, Context) ->
         {InitialData, InitialFun} ->
             {InitialData, stream_initial_fun(InitialFun, Parts1)};
         InitialFun ->
-            {<<>>, stream_initial_fun(InitialFun, Parts1)}
+            stream_initial_fun(InitialFun, Parts1)
     end,
-    send_stream_body(Context2, FirstHunk).
+    send_stream_body(FirstHunk, Context2).
 
 stream_initial_fun(F, Parts) when is_function(F, 2) ->
     fun(Ctx) -> F(Ctx, Parts) end;
@@ -200,7 +210,6 @@ stream_initial_fun(done, _Parts) ->
 
 
 %% Check if we support ranges on the data stream (body or function)
-is_streaming_range(done) -> true;
 is_streaming_range(Fun) when is_function(Fun, 2) -> true;
 is_streaming_range(Fun) when is_function(Fun) -> false;
 is_streaming_range({<<>>, Fun}) when is_function(Fun, 2) ->
@@ -228,31 +237,41 @@ response_headers(Code, Length, Context) ->
         <<"date">> => cowboy_clock:rfc1123()
     }.
 
-send_stream_body(Context, {<<>>, done}) ->
+% With continuation
+send_stream_body({<<>>, done}, Context) ->
     % @TODO: in cowboy this give a wrong termination with two 0 size chunks
     send_chunk(Context, <<>>, fin);
-send_stream_body(Context, {{file, Filename}, Next}) ->
+send_stream_body({<<>>, Next}, Context) ->
+    next(Next, Context);
+send_stream_body({Data, Next}, Context) when is_binary(Data); is_list(Data) ->
+    send_chunk(Context, Data, fin(Next)),
+    next(Next, Context);
+send_stream_body({{file, Filename}, Next}, Context) ->
     Length = filelib:file_size(Filename),
-    send_stream_body(Context, {{file, Length, Filename}, Next});
-send_stream_body(Context, {{file, 0, _Filename}, Next}) ->
+    send_stream_body({{file, Length, Filename}, Next}, Context);
+send_stream_body({{file, 0, _Filename}, Next}, Context) ->
     send_stream_body(Context, {<<>>, Next});
-send_stream_body(Context, {{file, Size, Filename}, Next}) ->
-    Context1 = send_file_body(Context, Size, Filename, nofin),
-    send_stream_body(Context1, {<<>>, Next});
-send_stream_body(Context, {Data, done}) ->
-    send_chunk(Context, Data, fin);
-send_stream_body(Context, {<<>>, Next}) ->
-    send_stream_body(Context, Next());
-send_stream_body(Context, {[], Next}) ->
-    send_stream_body(Context, Next());
-send_stream_body(Context, {Data, Next}) ->
-    Context1 = send_chunk(Context, Data, nofin),
-    send_stream_body(Context1, Next());
-send_stream_body(Context, Fun) when is_function(Fun, 1) ->
-    send_stream_body(Context, Fun(Context));
-send_stream_body(Context, Fun) when is_function(Fun, 0) ->
-    send_stream_body(Context, Fun()).
+send_stream_body({{file, Size, Filename}, Next}, Context) ->
+    Context1 = send_file_body(Context, Size, Filename, fin(Next)),
+    next(Next, Context1);
+% Without continuation
+send_stream_body(done, Context) ->
+    send_chunk(Context, <<>>, fin);
+send_stream_body(WriterFun, Context) when is_function(WriterFun, 1) ->
+    WriterFun(Context);
+send_stream_body(WriterFun, Context) when is_function(WriterFun, 0) ->
+    _ = WriterFun(),
+    Context.
 
+next(Fun, Context) when is_function(Fun, 1) ->
+    send_stream_body(Fun(Context), Context);
+next(Fun, Context) when is_function(Fun, 0) ->
+    send_stream_body(Fun(), Context);
+next(done, Context) ->
+    Context.
+
+fin(done) -> fin;
+fin(_) -> nofin.
 
 send_device_body(Context, Length, IO) ->
     send_file_body_loop(Context, 0, Length, IO, fin).
