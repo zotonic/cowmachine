@@ -1,9 +1,9 @@
 %% @author Marc Worrell <marc@worrell.nl>
-%% @copyright 2017 Marc Worrell
+%% @copyright 2017-2019 Marc Worrell
 %%
 %% @doc Accept-Language handling.
 
-%% Copyright 2017 Marc Worrell
+%% Copyright 2017-2019 Marc Worrell
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
     ]).
 
 
--spec accept_header([{binary(),binary()|undefined}], cowmachine_req:context()|binary()|undefined) ->
+-spec accept_header([{binary(),[ binary() ]}], cowmachine_req:context()|binary()|undefined) ->
         {ok, binary()} | {error, nomatch|header}.
 accept_header(_AvailableLangs, undefined) ->
     {error, nomatch};
@@ -54,7 +54,7 @@ parse(AcceptHeader) ->
     end.
 
 
--spec accept_list([{binary(),binary()|undefined}], [binary()]) ->
+-spec accept_list([{binary(), [ binary() ]}], [binary()]) ->
         {ok, binary()} | {error, nomatch}.
 accept_list(AvailableLangs, AcceptableLangs) ->
     case match_language(AvailableLangs, AcceptableLangs) of
@@ -88,7 +88,7 @@ ensure_baselangs(Langs) ->
         Langs).
 
 
-% Modify the priority so that languages with equal priority the first mentioned
+% Modify the priority so that for languages with equal priority the first mentioned
 % will be chosen.
 fix_order([], _N, Acc) ->
     Acc;
