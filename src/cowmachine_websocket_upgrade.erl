@@ -12,5 +12,11 @@ upgrade(Handler, Context) ->
     Opts = #{
         idle_timeout => infinity
     },
+
+    % Ensure the handler module is loaded. Cowboy uses erlang:function_exported/3 to
+    % check if optional callbacks are available. When the handler module is not loaded
+    % yet it will not call the optional callbacks for the first request. This ensures
+    % the module will be loaded.
     {module, Handler} = code:ensure_loaded(Handler),
+
     cowboy_websocket:upgrade(Req, Env, Handler, Context, Opts).
