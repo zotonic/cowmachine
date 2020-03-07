@@ -12,4 +12,5 @@ upgrade(Handler, Context) ->
     Opts = #{
         idle_timeout => infinity
     },
+    {module, Handler} = code:ensure_loaded(Handler),
     cowboy_websocket:upgrade(Req, Env, Handler, Context, Opts).
