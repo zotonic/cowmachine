@@ -2,11 +2,11 @@
 [{<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.7.0">>},0},
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.8.0">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1},
- {<<"zotonic_stdlib">>,{pkg,<<"zotonic_stdlib">>,<<"1.0.3">>},0}]}.
+ {<<"zotonic_stdlib">>,{pkg,<<"zotonic_stdlib">>,<<"1.2.2">>},0}]}.
 [
 {pkg_hash,[
  {<<"cowboy">>, <<"91ED100138A764355F43316B1D23D7FF6BDB0DE4EA618CB5D8677C93A7A2F115">>},
  {<<"cowlib">>, <<"FD0FF1787DB84AC415B8211573E9A30A3EBE71B5CBFF7F720089972B2319C8A4">>},
  {<<"ranch">>, <<"6B1FAB51B49196860B733A49C07604465A47BDB78AA10C1C16A3D199F7F8C881">>},
- {<<"zotonic_stdlib">>, <<"8F2C2345E1C930806C4CE63F9C745F503CF576C0B6EAA19218FCF3775F227E7B">>}]}
+ {<<"zotonic_stdlib">>, <<"37545B356C89B0D94F6C7CF2D6B26AB008AB7BC4AB64E1EF824DC344123A3761">>}]}
 ].
