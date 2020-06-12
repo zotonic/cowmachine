@@ -210,9 +210,9 @@ lower(C) -> C.
 
 %% @doc Check if the given proxy is trusted.
 is_trusted_proxy(Peer) ->
-    case application:get_env(cowmachine, proxy_whitelist) of
-        {ok, ProxyWhitelist} ->
-            is_trusted_proxy(ProxyWhitelist, Peer);
+    case application:get_env(cowmachine, proxy_allowlist) of
+        {ok, ProxyAllowlist} ->
+            is_trusted_proxy(ProxyAllowlist, Peer);
         undefined ->
             is_trusted_proxy(local, Peer)
     end.
@@ -224,14 +224,14 @@ is_trusted_proxy(any, _Peer) ->
 is_trusted_proxy(local, Peer) ->
     z_ip_address:is_local(Peer);
 is_trusted_proxy(ip_whitelist, Peer) ->
-    case application:get_env(cowmachine, ip_whitelist) of
-        {ok, Whitelist} ->
-            z_ip_address:ip_match(Peer, Whitelist);
+    case application:get_env(cowmachine, ip_allowlist) of
+        {ok, Allowlist} ->
+            z_ip_address:ip_match(Peer, Allowlist);
         undefined ->
             z_ip_address:is_local(Peer)
     end;
-is_trusted_proxy(Whitelist, Peer) when is_list(Whitelist); is_binary(Whitelist) ->
-    z_ip_address:ip_match(Peer, Whitelist).
+is_trusted_proxy(Allowlist, Peer) when is_list(Allowlist); is_binary(Allowlist) ->
+    z_ip_address:ip_match(Peer, Allowlist).
 
 
 % Extra host sanitization as cowboy is too lenient.
