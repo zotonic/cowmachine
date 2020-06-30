@@ -83,8 +83,7 @@ request_1(Controller, Req, Env, Options, Context) ->
             handle_stop_request(500, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, ResponseCode, Reason} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, {throw, Reason}, Req, Env, State, Context);
-        throw:{stop_request, 500} ->
-            Stacktrace = erlang:get_stacktrace(),
+        throw:{stop_request, 500}:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => "Stop request",
                    stacktrace => Stacktrace}, Req),
             handle_stop_request(500, Site, undefined, Req, Env, State, Context);
@@ -92,14 +91,12 @@ request_1(Controller, Req, Env, Options, Context) ->
             handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode) ->
             {stop, cowboy_req:reply(ResponseCode, Req)};
-        throw:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        throw:Reason:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => "Unexpected throw",
                    class => throw, reason => Reason,
                    stacktrace => Stacktrace}, Req),
             handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context);
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => "Unexpected exception",
                    class => Class, reason => Reason,
                    stacktrace => Stacktrace}, Req),
@@ -127,8 +124,7 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
                    code => Code,
                    reason => Reason }, Req),
             {stop, cowboy_req:reply(Code, Req)};
-        Class:Reason->
-            Stacktrace = erlang:get_stacktrace(),
+        Class:Reason:Stacktrace->
             log(#{ at => ?AT, level => warning,
                    text => "Unexpected exception",
                    code => 500,
