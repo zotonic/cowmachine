@@ -2,18 +2,6 @@ language: erlang
 otp_release:
   - 20.3
   - 19.3
-# jobs:
-#   include:
-#     - stage: deploy
-#       otp_release: 20.3
-#       script: skip
-#       deploy:
-#         provider: script
-#         script: ./hex.sh
-#         skip_cleanup: true
-#         on:
-#           tags: true
-#           all_branches: true
 
 install:
   - wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
