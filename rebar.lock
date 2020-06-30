@@ -1,12 +1,12 @@
 {"1.1.0",
-[{<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.7.0">>},0},
- {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.8.0">>},1},
+[{<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.8.0">>},0},
+ {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.9.1">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1},
- {<<"zotonic_stdlib">>,{pkg,<<"zotonic_stdlib">>,<<"1.2.2">>},0}]}.
+ {<<"zotonic_stdlib">>,{pkg,<<"zotonic_stdlib">>,<<"1.2.3">>},0}]}.
 [
 {pkg_hash,[
- {<<"cowboy">>, <<"91ED100138A764355F43316B1D23D7FF6BDB0DE4EA618CB5D8677C93A7A2F115">>},
- {<<"cowlib">>, <<"FD0FF1787DB84AC415B8211573E9A30A3EBE71B5CBFF7F720089972B2319C8A4">>},
+ {<<"cowboy">>, <<"F3DC62E35797ECD9AC1B50DB74611193C29815401E53BAC9A5C0577BD7BC667D">>},
+ {<<"cowlib">>, <<"61A6C7C50CF07FDD24B2F45B89500BB93B6686579B069A89F88CB211E1125C78">>},
  {<<"ranch">>, <<"6B1FAB51B49196860B733A49C07604465A47BDB78AA10C1C16A3D199F7F8C881">>},
- {<<"zotonic_stdlib">>, <<"37545B356C89B0D94F6C7CF2D6B26AB008AB7BC4AB64E1EF824DC344123A3761">>}]}
+ {<<"zotonic_stdlib">>, <<"4A33B60C82379169C9934CCD1FC9E512CA16B922E131AD6B6D26E562F66DF9CC">>}]}
 ].

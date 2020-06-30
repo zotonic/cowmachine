@@ -36,8 +36,7 @@ handle_request(#cmstate{ controller = Controller } = CmState, Context) ->
         code:ensure_loaded(Controller),
         d(v3b13, CmState, Context)
     catch
-        error:Error ->
-            Stacktrace = erlang:get_stacktrace(),
+        error:Error:Stacktrace ->
             throw({stop_request, 500, {Error, Stacktrace}})
     end.
 
