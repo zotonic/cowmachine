@@ -1,4 +1,5 @@
 .eunit
+doc/
 deps
 *.o
 *.beam

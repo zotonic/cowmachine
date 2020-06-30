@@ -117,14 +117,14 @@
     any() => any()
 }.
 
-%% @doc The request context stores everything needed for the request handling.
-%%      Inside Zotonic all functions work with a site specific context, this
-%%      context has optionally a request. That is why the context is wrapped around
-%%      the cowboy request.
+%% The request context stores everything needed for the request handling.
+%% Inside Zotonic all functions work with a site specific context, this
+%% context has optionally a request. That is why the context is wrapped around
+%% the cowboy request.
 %%
-%%      The cowmachine context must be the cowreq record, a tuple or a map.
-%%      If it is a tuple then it is assumed to be a record then the cowreq
-%%      is at position 2 and the cowenv at position 3.
+%% The cowmachine context must be the cowreq record, a tuple or a map.
+%% If it is a tuple then it is assumed to be a record then the cowreq
+%% is at position 2 and the cowenv at position 3.
 -type context() :: context_map() | tuple().
 
 %% Used to stop a request with a specific HTTP status code
@@ -359,7 +359,7 @@ raw_path(Context) ->
 path(Context) ->
     cowboy_req:path(req(Context)).
 
-%% @doc Return the undecoded query string, <<>> when no query string.
+%% @doc Return the undecoded query string, &lt;&lt;>> when no query string.
 -spec qs(context()) -> binary().
 qs(Context) ->
     cowboy_req:qs(req(Context)).

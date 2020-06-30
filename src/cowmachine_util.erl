@@ -45,10 +45,10 @@ convert_request_date(Date) ->
 %% If there is no acceptable/available match, return the atom 'none'.
 %% AcceptHead is the value of the request's Accept header
 %% Provided is a list of media types the controller can provide.
-%%  each is either a binary e.g. -- <<"text/html">>
-%%   or a binary and parameters e.g. -- {<<"text/html">>,[{<<"level">>,<<"1">>}]}
-%%   or two binaries e.g. {<<"text">>, <<"html">>}
-%%   or two binaries and parameters e.g. -- {<<"text">>,<<"html">>,[{<<"level">>,<<"1">>}]}
+%%  each is either a binary e.g. -- &lt;&lt;"text/html">>
+%%   or a binary and parameters e.g. -- {&lt;&lt;"text/html">>,[{&lt;&lt;"level">>,&lt;&lt;"1">>}]}
+%%   or two binaries e.g. {&lt;&lt;"text">>, &lt;&lt;"html">>}
+%%   or two binaries and parameters e.g. -- {&lt;&lt;"text">>,&lt;&lt;"html">>,[{&lt;&lt;"level">>,&lt;&lt;"1">>}]}
 %% (the plain string case with no parameters is much more common)
 -spec choose_media_type_provided( list(), binary() ) -> cow_http_hd:media_type() | none.
 choose_media_type_provided(Provided, AcceptHead) when is_list(Provided), is_binary(AcceptHead) ->
@@ -217,8 +217,6 @@ do_choose(Default, DefaultOkay, AnyOkay, Choices, [{Acc,_Prio}|AccRest]) ->
     end.
 
 
-%% @doc Parse an application/x-www-form-urlencoded string.
-%%
 %% The percent decoding is inlined to greatly improve the performance
 %% by avoiding copying binaries twice (once for extracting, once for
 %% decoding) instead of just extracting the proper representation.
@@ -237,6 +235,8 @@ do_choose(Default, DefaultOkay, AnyOkay, Choices, [{Acc,_Prio}|AccRest]) ->
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 %%
+
+%% @doc Parse an application/x-www-form-urlencoded string.
 -spec parse_qs(binary()) -> list({binary(),binary()}).
 parse_qs(<<>>) ->
     [];
