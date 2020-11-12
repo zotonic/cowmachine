@@ -78,6 +78,10 @@ request_1(Controller, Req, Env, Options, Context) ->
                 {upgrade, UpgradeFun, _StateResult, ContextResult}
         end
     catch
+        throw:{stop_request, 500, {Reason, Stacktrace}} when is_list(Stacktrace) ->
+            log(#{ at => ?AT, level => error, code => 500, text => "Stop request",
+                   reason => Reason, stacktrace => Stacktrace}, Req),
+            handle_stop_request(500, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, 500, Reason} ->
             log(#{ at => ?AT, level => error, code => 500, text => "Stop request", reason => Reason}, Req),
             handle_stop_request(500, Site, {throw, Reason}, Req, Env, State, Context);
