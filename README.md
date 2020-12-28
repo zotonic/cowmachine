@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/zotonic/cowmachine.svg?branch=master)](https://travis-ci.org/zotonic/cowmachine)
+![Test](https://github.com/zotonic/cowmachine/workflows/Test/badge.svg)
 
 # Cowmachine
 
