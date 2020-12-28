@@ -31,6 +31,6 @@ jobs:
       - name: Test
         run: make test
       - name: XRef
-        run: xref
+        run: make xref
       - name: Dialyzer
         run: make dialyzer
