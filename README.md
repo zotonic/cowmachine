@@ -1,4 +1,5 @@
 ![Test](https://github.com/zotonic/cowmachine/workflows/Test/badge.svg)
+[![Hex version](https://img.shields.io/hexpm/v/cowmachine.svg "Hex version")](https://hex.pm/packages/cowmachine)
 
 # Cowmachine
 
