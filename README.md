@@ -56,6 +56,12 @@ execute(Req, Env) ->
             fun(Ctx) ->
                 % Perform anything after well-formedness check of your request
                 % Examples are parsing the query args, or authentication
+                Ctx
+            end,
+        on_handled =>
+            fun(Ctx) ->
+                % Perform anything after processing, before sending the result.
+                Ctx
             end
     },
     % Handle the request, returns updated Req and Env for next Cowboy middleware

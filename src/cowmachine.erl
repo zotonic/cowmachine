@@ -73,7 +73,11 @@ request_1(Controller, Req, Env, Options, Context) ->
         Context1 = cowmachine_req:set_env(EnvInit, Context),
         case cowmachine_decision_core:handle_request(State, Context1) of
             {_Finish, _StateResult, ContextResult} ->
-                cowmachine_response:send_response(ContextResult);
+                ContextResult1 = case maps:get(on_handled, Options, undefined) of
+                    undefined -> ContextResult;
+                    Fun when is_function(Fun) -> Fun(ContextResult)
+                end,
+                cowmachine_response:send_response(ContextResult1);
             {upgrade, UpgradeFun, _StateResult, ContextResult} ->
                 {upgrade, UpgradeFun, _StateResult, ContextResult}
         end
