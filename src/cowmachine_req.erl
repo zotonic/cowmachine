@@ -351,7 +351,7 @@ raw_path(Context) ->
     Path = cowboy_req:path(req(Context)),
     case qs(Context) of
         <<>> -> Path;
-        Qs -> <<Path/binary, Qs/binary>>
+        Qs -> <<Path/binary, $?, Qs/binary>>
     end.
 
 %% @doc Return the undecoded request path as-is
