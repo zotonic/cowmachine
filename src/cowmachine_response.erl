@@ -388,8 +388,10 @@ parse_range_request(<<"bytes=", RangeString/binary>>) ->
                    {none, binary_to_integer(V)};
                 (R) ->
                     case binary:split(R, <<"-">>) of
+                        [S1, <<>>] -> {binary_to_integer(S1), none};
+                        [<<>>, S2] -> {none, binary_to_integer(S2)};
                         [S1, S2] -> {binary_to_integer(S1), binary_to_integer(S2)};
-                        [S] -> {binary_to_integer(S), none}
+                        [S1] -> {binary_to_integer(S1), none}
                     end
           end,
           Ranges)
