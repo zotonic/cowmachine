@@ -162,6 +162,9 @@ log(#{ level := Level } = Report, Req) when is_map(Req) ->
                                         {path, fun path/1}]), 
     log_report(Level, Report1#{in => cowmachine}).
 
+log_report(debug, _Report) ->
+    %% Ignore for now - re-enable for logger
+    ok;
 log_report(Level, Report) when is_map(Report) ->
     %% @todo also implement error logging for erlang 21 and higher.
     Function = case Level of

@@ -1,7 +1,7 @@
 ERL       ?= erl
 ERLC      ?= $(ERL)c
 REBAR     := ./rebar3
-REBAR_URL := https://s3-eu-west-1.amazonaws.com/zotonic-rebar/rebar3
+REBAR_URL := https://s3.amazonaws.com/rebar3/rebar3
 
 .PHONY: compile test dialyzer xref clean
 
@@ -14,7 +14,7 @@ test: $(REBAR)
 	$(REBAR) as test eunit
 
 dialyzer: $(REBAR)
-	$(REBAR) as test dialyzer
+	$(REBAR) dialyzer
 
 xref: $(REBAR)
 	$(REBAR) as test xref
