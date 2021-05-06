@@ -1,6 +1,6 @@
 %% @author Justin Sheehy <justin@basho.com>
 %% @author Andy Gross <andy@basho.com>
-%% @copyright 2007-2009 Basho Technologies
+%% @copyright 2007-2009 Basho Technologies, 2018-2021 Marc Worrell
 %% Based on mochiweb_request.erl, which is Copyright 2007 Mochi Media, Inc.
 %%
 %%    Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,7 +34,7 @@
 ]).
 
 -define(IDLE_TIMEOUT, infinity).
--define(FILE_CHUNK_LENGTH, 65536).
+-define(FILE_CHUNK_LENGTH, 16#1FFF).
 
 server_header() ->
     case application:get_env(cowmachine, server_header) of
@@ -285,7 +285,7 @@ send_device_body(Context, Length, IO) ->
     send_file_body_loop(Context, 0, Length, IO, fin).
 
 send_file_body(Context, Length, Filename, FinNoFin) ->
-    {ok, FD} = file:open(Filename, [raw,binary]),
+    {ok, FD} = file:open(Filename, [read,raw,binary]),
     try
         send_file_body_loop(Context, 0, Length, FD, FinNoFin)
     after
@@ -332,15 +332,15 @@ send_parts(Context, {Parts, Size, Boundary, ContentType}, Bin) ->
     send_chunk(Context, end_boundary(Boundary), fin).
 
 
-send_file_body_loop(Context, Offset, Size, _Device, _FinNoFin) when Offset =:= Size ->
-    Context;
+send_file_body_loop(Context, Offset, Size, _Device, FinNoFin) when Offset =:= Size ->
+    send_chunk(Context, <<>>, FinNoFin);
 send_file_body_loop(Context, Offset, Size, Device, FinNoFin) when Size - Offset =< ?FILE_CHUNK_LENGTH ->
     {ok, Data} = file:read(Device, Size - Offset),
     send_chunk(Context, Data, FinNoFin);
 send_file_body_loop(Context, Offset, Size, Device, FinNoFin) ->
     {ok, Data} = file:read(Device, ?FILE_CHUNK_LENGTH),
     send_chunk(Context, Data, nofin),
-    send_file_body_loop(Context, Offset+?FILE_CHUNK_LENGTH, Size, Device, FinNoFin).
+    send_file_body_loop(Context, Offset+iolist_size(Data), Size, Device, FinNoFin).
 
 send_writer_body(Context, BodyFun) ->
     BodyFun(fun(Data, false, ContextW) ->
