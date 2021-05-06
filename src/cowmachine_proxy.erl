@@ -97,7 +97,7 @@ update_env_proxy(Forwarded, Req, Env) ->
                 cowmachine_remote => RemoteAdr
             };
         false ->
-            cowmachine:log(#{ level => warning,
+            cowmachine:log(#{ level => debug,
                               at => ?AT,
                               text => "Received proxy header 'Forwarded' from untrusted peer"
                             }, Req),
@@ -136,7 +136,7 @@ update_env_old_proxy(XForwardedFor, Req, Env) ->
                 cowmachine_remote => RemoteAdr
             };
         false ->
-            cowmachine:log(#{ level => warning,
+            cowmachine:log(#{ level => debug,
                               at => ?AT,
                               text => "Received proxy header 'X-Forwarded-For' from untrusted peer"
                             }, Req),
