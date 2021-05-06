@@ -1,7 +1,7 @@
 ERL       ?= erl
 ERLC      ?= $(ERL)c
 REBAR     := ./rebar3
-REBAR_URL := https://github.com/erlang/rebar3/releases/download/3.15.1/rebar3
+REBAR_URL := https://s3.amazonaws.com/rebar3/rebar3
 
 .PHONY: compile test dialyzer xref clean
 
