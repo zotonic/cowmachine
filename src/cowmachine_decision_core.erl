@@ -125,6 +125,8 @@ error_response(Code, Reason, State, Context) ->
     controller_call(finish_request, State, Context),
     throw({stop_request, Code, Reason}).
 
+% Suppress no_local return error
+-dialyzer({nowarn_function, error_response/3}).
 error_response(Reason, State, Context) ->
     error_response(500, Reason, State, Context).
 

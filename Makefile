@@ -14,7 +14,7 @@ test: $(REBAR)
 	$(REBAR) as test eunit
 
 dialyzer: $(REBAR)
-	$(REBAR) as test dialyzer
+	$(REBAR) dialyzer
 
 xref: $(REBAR)
 	$(REBAR) as test xref
