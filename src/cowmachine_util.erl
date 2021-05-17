@@ -60,7 +60,7 @@ is_valid_header_value(_) -> false.
 valid_location(Location) ->
     case is_valid_header_value(Location) of
         true ->
-            case z_html:noscript(Location) of
+            case z_html:noscript(Location, false) of
                 <<"#script-removed">> -> false;
                 <<>> -> false;
                 Loc -> {true, Loc}
