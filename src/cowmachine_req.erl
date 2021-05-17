@@ -417,9 +417,27 @@ is_range_ok(Context) ->
 set_resp_header(Header, [V|Rs], Context) when is_binary(Header), is_binary(V) ->
     V1 = iolist_to_binary([V, [ [", ", R] || R <- Rs] ]),
     set_resp_header(Header, V1, Context);
+set_resp_header(Header, Value, Context)
+    when Header =:= <<"location">>;
+         Header =:= <<"content-location">> ->
+    case cowmachine_util:valid_location(Value) of
+        {true, Loc} ->
+            set_resp_header_1(Header, Loc, Context);
+        false ->
+            throw({http_invalid_location, Header, Value})
+    end;
 set_resp_header(Header, Value, Context) when is_binary(Header) ->
-    Req = cowboy_req:set_resp_header(Header, z_convert:to_binary(Value), req(Context)),
-    set_req(Req, Context).
+    set_resp_header_1(Header, Value, Context).
+
+set_resp_header_1(Header, Value, Context) ->
+    V = z_convert:to_binary(Value),
+    case cowmachine_util:is_valid_header(Header) andalso cowmachine_util:is_valid_header_value(V) of
+        true ->
+            Req = cowboy_req:set_resp_header(Header, z_convert:to_binary(Value), req(Context)),
+            set_req(Req, Context);
+        false ->
+            throw({http_invalid_header, Header, V})
+    end.
 
 %% @doc Set multiple response headers.
 -spec set_resp_headers([{binary(), binary()}], context()) -> context().

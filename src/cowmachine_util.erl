@@ -18,6 +18,7 @@
 
 -module(cowmachine_util).
 
+-export([is_valid_header/1, is_valid_header_value/1, valid_location/1]).
 -export([parse_qs/1]).
 -export([convert_request_date/1]).
 -export([choose_media_type_provided/2]).
@@ -30,6 +31,43 @@
 -export([format_content_type/1]).
 -export([quoted_string/1]).
 -export([split_quoted_strings/1]).
+
+
+%% @doc Check header valid characters, see https://www.ietf.org/rfc/rfc822.txt
+-spec is_valid_header( binary() ) -> boolean().
+is_valid_header(<<>>) -> false;
+is_valid_header(H) -> is_valid_header_1(H).
+
+is_valid_header_1(<<>>) -> true;
+is_valid_header_1(<<$:, _/binary>>) -> false;
+is_valid_header_1(<<C, _/binary>>) when C >= $A, C =< $Z -> false;
+is_valid_header_1(<<C, R/binary>>) when C >= 33, C =< 126 -> is_valid_header_1(R);
+is_valid_header_1(_) -> false.
+
+%% @doc Check if the given value is acceptaple for a http header value.
+-spec is_valid_header_value( binary() ) -> boolean().
+is_valid_header_value(<<>>) -> true;
+is_valid_header_value(<<13, _/binary>>) -> false;
+is_valid_header_value(<<10, _/binary>>) -> false;
+is_valid_header_value(<<C, R/binary>>) when C =< 127 -> is_valid_header_value(R);
+is_valid_header_value(_) -> false.
+
+
+%% @doc Check if the given location is safe to use as a location header. This is
+%% uses as a defense against urls with scripts. The test is quite strict and will
+%% drop values that might have been acceptable.
+-spec valid_location( binary() ) -> {true, binary()} | false.
+valid_location(Location) ->
+    case is_valid_header_value(Location) of
+        true ->
+            case z_html:noscript(Location) of
+                <<"#script-removed">> -> false;
+                <<>> -> false;
+                Loc -> {true, Loc}
+            end;
+        false ->
+            false
+    end.
 
 %% @doc Parse the HTTP date (IMF-fixdate, rfc850, asctime).
 -spec convert_request_date(binary()) -> calendar:datetime().
