@@ -311,7 +311,9 @@ parse_qs_value(<< $&, Rest/bits >>, Acc, Name, Value) ->
 parse_qs_value(<< C, Rest/bits >>, Acc, Name, Value) when C =/= $% ->
     parse_qs_value(Rest, Acc, Name, << Value/bits, C >>);
 parse_qs_value(<<>>, Acc, Name, Value) ->
-    lists:reverse([{Name, Value}|Acc]).
+    lists:reverse([{Name, Value}|Acc]);
+parse_qs_value(_Rest, _Acc, _Name, _Value) ->
+    throw(invalid_percent_encoding).
 
 unhex($0) ->  0;
 unhex($1) ->  1;
@@ -334,7 +336,8 @@ unhex($b) -> 11;
 unhex($c) -> 12;
 unhex($d) -> 13;
 unhex($e) -> 14;
-unhex($f) -> 15.
+unhex($f) -> 15;
+unhex(_) -> throw(invalid_percent_encoding).
 
 
 %% author Bob Ippolito <bob@mochimedia.com>
