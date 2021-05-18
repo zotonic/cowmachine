@@ -99,6 +99,9 @@ request_1(Controller, Req, Env, Options, Context) ->
             handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode) ->
             {stop, cowboy_req:reply(ResponseCode, Req)};
+        throw:invalid_percent_encoding ->
+            log(#{ at => ?AT, level => error, code => 400, text => "Illegal percent encoding" }, Req),
+            {stop, cowboy_req:reply(400, Req)};
         throw:Reason:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => "Unexpected throw",
                    class => throw, reason => Reason,
