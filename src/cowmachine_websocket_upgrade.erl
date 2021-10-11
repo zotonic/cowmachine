@@ -10,7 +10,8 @@ upgrade(Handler, Context) ->
     Req = cowmachine_req:req(Context),
     Env = cowmachine_req:env(Context),
     Opts = #{
-        idle_timeout => infinity
+        idle_timeout => infinity,
+        compress => true
     },
 
     % Ensure the handler module is loaded. Cowboy uses erlang:function_exported/3 to
