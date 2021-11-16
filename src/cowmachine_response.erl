@@ -103,14 +103,14 @@ send_response_bodyfun({device, Length, IO}, Code, all, Context) ->
     Writer = fun(FunContext) ->
                 send_device_body(FunContext, Length, IO),
                 _ = file:close(IO),
-                {fin, FunContext}
+                FunContext
              end,
     start_response_stream(Code, Length, Writer, all, Context);
 send_response_bodyfun({device, _Length, IO}, Code, Parts, Context) ->
     Writer = fun(FunContext, WParts) ->
                 FunContext1 = send_device_body_parts(FunContext, WParts, IO),
                 _ = file:close(IO),
-                {fin, FunContext1}
+                FunContext1
              end,
     start_response_stream(Code, undefined, Writer, Parts, Context);
 % File
