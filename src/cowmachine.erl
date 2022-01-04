@@ -102,6 +102,9 @@ request_1(Controller, Req, Env, Options, Context) ->
         throw:invalid_percent_encoding ->
             log(#{ at => ?AT, level => error, code => 400, text => "Illegal percent encoding" }, Req),
             {stop, cowboy_req:reply(400, Req)};
+        throw:invalid_qs_name ->
+            log(#{ at => ?AT, level => error, code => 400, text => "Illegal query argument name" }, Req),
+            {stop, cowboy_req:reply(400, Req)};
         throw:Reason:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => "Unexpected throw",
                    class => throw, reason => Reason,
