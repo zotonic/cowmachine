@@ -281,35 +281,39 @@ parse_qs(<<>>) ->
 parse_qs(Qs) ->
     parse_qs_name(Qs, [], <<>>).
 
-parse_qs_name(<< $%, H, L, Rest/bits >>, Acc, Name) ->
+parse_qs_name(<< $%, H, L, Rest/binary >>, Acc, Name) ->
     C = (unhex(H) bsl 4 bor unhex(L)),
-    parse_qs_name(Rest, Acc, << Name/bits, C >>);
-parse_qs_name(<< $+, Rest/bits >>, Acc, Name) ->
-    parse_qs_name(Rest, Acc, << Name/bits, " " >>);
-parse_qs_name(<< $=, Rest/bits >>, Acc, Name) when Name =/= <<>> ->
+    parse_qs_name(Rest, Acc, << Name/binary, C >>);
+parse_qs_name(<< $+, Rest/binary >>, Acc, Name) ->
+    parse_qs_name(Rest, Acc, << Name/binary, " " >>);
+parse_qs_name(<< $=, _/binary >>, _Acc, <<>>) ->
+    throw(invalid_qs_name);
+parse_qs_name(<< $=, Rest/binary >>, Acc, Name) ->
     parse_qs_value(Rest, Acc, Name, <<>>);
-parse_qs_name(<< $&, Rest/bits >>, Acc, Name) ->
+parse_qs_name(<< $&, Rest/binary >>, Acc, Name) ->
     case Name of
         <<>> -> parse_qs_name(Rest, Acc, <<>>);
         _ -> parse_qs_name(Rest, [{Name, <<>>}|Acc], <<>>)
     end;
-parse_qs_name(<< C, Rest/bits >>, Acc, Name) when C =/= $%, C =/= $= ->
-    parse_qs_name(Rest, Acc, << Name/bits, C >>);
+parse_qs_name(<< C, Rest/binary >>, Acc, Name) when C =/= $% ->
+    parse_qs_name(Rest, Acc, << Name/binary, C >>);
 parse_qs_name(<<>>, Acc, Name) ->
     case Name of
         <<>> -> lists:reverse(Acc);
         _ -> lists:reverse([{Name, <<>>}|Acc])
-    end.
+    end;
+parse_qs_name(_Rest, _Acc, _Name) ->
+    throw(invalid_percent_encoding).
 
-parse_qs_value(<< $%, H, L, Rest/bits >>, Acc, Name, Value) ->
+parse_qs_value(<< $%, H, L, Rest/binary >>, Acc, Name, Value) ->
     C = (unhex(H) bsl 4 bor unhex(L)),
-    parse_qs_value(Rest, Acc, Name, << Value/bits, C >>);
-parse_qs_value(<< $+, Rest/bits >>, Acc, Name, Value) ->
-    parse_qs_value(Rest, Acc, Name, << Value/bits, " " >>);
-parse_qs_value(<< $&, Rest/bits >>, Acc, Name, Value) ->
+    parse_qs_value(Rest, Acc, Name, << Value/binary, C >>);
+parse_qs_value(<< $+, Rest/binary >>, Acc, Name, Value) ->
+    parse_qs_value(Rest, Acc, Name, << Value/binary, " " >>);
+parse_qs_value(<< $&, Rest/binary >>, Acc, Name, Value) ->
     parse_qs_name(Rest, [{Name, Value}|Acc], <<>>);
-parse_qs_value(<< C, Rest/bits >>, Acc, Name, Value) when C =/= $% ->
-    parse_qs_value(Rest, Acc, Name, << Value/bits, C >>);
+parse_qs_value(<< C, Rest/binary >>, Acc, Name, Value) when C =/= $% ->
+    parse_qs_value(Rest, Acc, Name, << Value/binary, C >>);
 parse_qs_value(<<>>, Acc, Name, Value) ->
     lists:reverse([{Name, Value}|Acc]);
 parse_qs_value(_Rest, _Acc, _Name, _Value) ->
