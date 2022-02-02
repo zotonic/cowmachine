@@ -156,7 +156,10 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
 %%
 
 log(#{ level := Level } = Report) ->
-    log_report(Level, Report#{in => cowmachine}).
+    log_report(Level, Report#{
+        in => cowmachine,
+        node => node()
+    }).
 
 log(#{ level := Level } = Report, Req) when is_map(Req) ->
     Report1 = lists:foldl(fun({Key, Fun}, Acc) ->
@@ -167,7 +170,10 @@ log(#{ level := Level } = Report, Req) when is_map(Req) ->
                           end, Report, [{src, fun src/1},
                                         {dst, fun dst/1},
                                         {path, fun path/1}]),
-    log_report(Level, Report1#{in => cowmachine}).
+    log_report(Level, Report1#{
+        in => cowmachine,
+        node => node()
+    }).
 
 log_report(debug, Report) when is_map(Report) ->
     ?LOG_DEBUG(Report);
