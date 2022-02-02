@@ -30,6 +30,7 @@
 %% Internal logging interface
 -export([log/1, log/2]).
 
+-include_lib("kernel/include/logger.hrl").
 -include("cowmachine_state.hrl").
 -include("cowmachine_log.hrl").
 
@@ -84,7 +85,7 @@ request_1(Controller, Req, Env, Options, Context) ->
     catch
         throw:{stop_request, 500, {Reason, Stacktrace}} when is_list(Stacktrace) ->
             log(#{ at => ?AT, level => error, code => 500, text => "Stop request",
-                   reason => Reason, stacktrace => Stacktrace}, Req),
+                   reason => Reason, stack => Stacktrace}, Req),
             handle_stop_request(500, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, 500, Reason} ->
             log(#{ at => ?AT, level => error, code => 500, text => "Stop request", reason => Reason}, Req),
@@ -93,7 +94,7 @@ request_1(Controller, Req, Env, Options, Context) ->
             handle_stop_request(ResponseCode, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, 500}:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => "Stop request",
-                   stacktrace => Stacktrace}, Req),
+                   stack => Stacktrace}, Req),
             handle_stop_request(500, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
@@ -108,12 +109,12 @@ request_1(Controller, Req, Env, Options, Context) ->
         throw:Reason:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => "Unexpected throw",
                    class => throw, reason => Reason,
-                   stacktrace => Stacktrace}, Req),
+                   stack => Stacktrace}, Req),
             handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context);
         Class:Reason:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => "Unexpected exception",
                    class => Class, reason => Reason,
-                   stacktrace => Stacktrace}, Req),
+                   stack => Stacktrace}, Req),
             {stop, cowboy_req:reply(500, Req)}
     end.
 
@@ -132,19 +133,19 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
         ContextRespCode = cowmachine_req:set_response_code(ResponseCode, ContextResult),
         cowmachine_response:send_response(ContextRespCode)
     catch
-        throw:{stop_request, Code, Reason} ->
+        throw:{stop_request, Code, CReason} ->
             log(#{ at => ?AT, level => warning,
                    text => "Stop request",
                    code => Code,
-                   reason => Reason }, Req),
+                   reason => CReason }, Req),
             {stop, cowboy_req:reply(Code, Req)};
-        Class:Reason:Stacktrace->
+        Class:CReason:Stacktrace->
             log(#{ at => ?AT, level => warning,
                    text => "Unexpected exception",
                    code => 500,
                    class => Class,
-                   reason => Reason,
-                   stacktrace => Stacktrace
+                   reason => CReason,
+                   stack => Stacktrace
                  }, Req),
             {stop, cowboy_req:reply(500, Req)}
     end.
@@ -155,7 +156,10 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
 %%
 
 log(#{ level := Level } = Report) ->
-    log_report(Level, Report#{in => cowmachine}).
+    log_report(Level, Report#{
+        in => cowmachine,
+        node => node()
+    }).
 
 log(#{ level := Level } = Report, Req) when is_map(Req) ->
     Report1 = lists:foldl(fun({Key, Fun}, Acc) ->
@@ -165,23 +169,25 @@ log(#{ level := Level } = Report, Req) when is_map(Req) ->
                                   end
                           end, Report, [{src, fun src/1},
                                         {dst, fun dst/1},
-                                        {path, fun path/1}]), 
-    log_report(Level, Report1#{in => cowmachine}).
+                                        {path, fun path/1}]),
+    log_report(Level, Report1#{
+        in => cowmachine,
+        node => node()
+    }).
 
-log_report(debug, _Report) ->
-    %% Ignore for now - re-enable for logger
-    ok;
-log_report(Level, Report) when is_map(Report) ->
-    %% @todo also implement error logging for erlang 21 and higher.
-    Function = case Level of
-                   error -> error_report;
-                   warning -> warning_report;
-                   info -> info_report
-               end,
-    error_logger:Function(maps:to_list(Report)).
+log_report(debug, Report) when is_map(Report) ->
+    ?LOG_DEBUG(Report);
+log_report(info, Report) when is_map(Report) ->
+    ?LOG_INFO(Report);
+log_report(notice, Report) when is_map(Report) ->
+    ?LOG_NOTICE(Report);
+log_report(warning, Report) when is_map(Report) ->
+    ?LOG_WARNING(Report);
+log_report(error, Report) when is_map(Report) ->
+    ?LOG_ERROR(Report).
 
 src(#{ peer := {IP, Port} }) -> {ok, ip_info(IP, Port)};
-src(_) -> undefined. 
+src(_) -> undefined.
 
 dst(#{ sock := {IP, Port} } ) -> {ok, ip_info(IP, Port)};
 dst(#{ port := Port }) -> {ok, #{ port => Port }};
