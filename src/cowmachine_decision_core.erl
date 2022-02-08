@@ -32,13 +32,8 @@
 -include("cowmachine_log.hrl").
 
 handle_request(#cmstate{ controller = Controller } = CmState, Context) ->
-    try
-        code:ensure_loaded(Controller),
-        d(v3b13, CmState, Context)
-    catch
-        error:Error:Stacktrace ->
-            throw({stop_request, 500, {Error, Stacktrace}})
-    end.
+    code:ensure_loaded(Controller),
+    d(v3b13, CmState, Context).
 
 %% @doc Call the controller
 -spec controller_call(atom(), #cmstate{}, term()) -> {term(), #cmstate{}, term()}.
