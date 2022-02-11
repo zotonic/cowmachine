@@ -1,6 +1,6 @@
 %% @author Justin Sheehy <justin@basho.com>
 %% @author Andy Gross <andy@basho.com>
-%% @copyright 2007-2009 Basho Technologies, 2018-2021 Marc Worrell
+%% @copyright 2007-2009 Basho Technologies, 2018-2022 Marc Worrell
 %% Based on mochiweb_request.erl, which is Copyright 2007 Mochi Media, Inc.
 %%
 %%    Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,8 +33,7 @@
     send_stream_body/2
 ]).
 
--define(IDLE_TIMEOUT, infinity).
--define(FILE_CHUNK_LENGTH, 16#1FFF).
+-define(FILE_CHUNK_LENGTH, 16#80000). % 512KB
 
 server_header() ->
     case application:get_env(cowmachine, server_header) of
