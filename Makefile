@@ -22,6 +22,15 @@ xref: $(REBAR)
 clean:
 	$(REBAR) clean
 
+##
+## Doc targets
+##
+docs: $(REBAR)
+	$(REBAR) edoc
+
+edoc_private: $(REBAR)	
+	$(REBAR) as edoc_private edoc
+
 $(REBAR):
 	$(ERL) -noshell -s inets -s ssl \
 	  -eval '{ok, saved_to_file} = httpc:request(get, {"$(REBAR_URL)", []}, [], [{stream, "$(REBAR)"}])' \

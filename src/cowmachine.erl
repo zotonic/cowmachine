@@ -2,6 +2,7 @@
 %% @copyright 2016-2019 Marc Worrell
 %%
 %% @doc Cowmachine: webmachine middleware for Cowboy/Zotonic
+%% @end
 
 %% Copyright 2016-2019 Marc Worrell
 %%
@@ -34,11 +35,15 @@
 -include("cowmachine_state.hrl").
 -include("cowmachine_log.hrl").
 
+%% @private
+-export_type([cmstate/0]).
+
 %% @doc Cowboy middleware, route the new request. Continue with the cowmachine,
 %%      requests a redirect or return a 400 on an unknown host.
--spec execute(Req, Env) -> {ok, Req, Env} | {stop, Req}
+-spec execute(Req, Env) -> Result
     when Req :: cowboy_req:req(),
-         Env :: cowboy_middleware:env().
+         Env :: cowboy_middleware:env(),
+		 Result :: {ok, Req, Env} | {stop, Req}.
 execute(Req, #{ cowmachine_controller := _Controller } = Env) ->
     ContextEnv = maps:get(cowmachine_context, Env, undefined),
     Context = cowmachine_req:init_context(Req, Env, ContextEnv),
@@ -47,10 +52,13 @@ execute(Req, #{ cowmachine_controller := _Controller } = Env) ->
 
 %% @doc Handle a request, executes the cowmachine http states. Can be used by middleware
 %% functions to add some additional initialization of controllers or context.
--spec request(Context, Options::map()) -> {ok, Req, Env} | {stop, Req}
+
+-spec request(Context, Options) -> Result
     when Context :: cowmachine_req:context(),
-         Req :: cowboy_req:req(),
-         Env :: cowboy_middleware:env().
+         Options :: map(),
+		 Req :: cowboy_req:req(),
+         Env :: cowboy_middleware:env(),
+		 Result :: {ok, Req, Env} | {stop, Req}.
 request(Context, Options) ->
     Req = cowmachine_req:req(Context),
     Env = cowmachine_req:env(Context),
@@ -62,6 +70,15 @@ request(Context, Options) ->
             Other
     end.
 
+-spec request_1(Controller, Req, Env, Options, Context) -> Result when
+	Controller :: atom(),
+    Req :: cowboy_req:req(),
+    Env :: cowboy_middleware:env(),
+	Options :: map(),
+	Context :: cowmachine_req:context(),
+	Result :: {upgrade, UpgradeFun, State, Context} | cowboy_middleware:env() | any(),
+	UpgradeFun :: atom(),
+	State :: cmstate().
 request_1(Controller, Req, Env, Options, Context) ->
     State = #cmstate{
         controller = Controller,
@@ -69,7 +86,7 @@ request_1(Controller, Req, Env, Options, Context) ->
         options = Options
     },
     Site = maps:get(site, Env, undefined),
-    try
+    ReqResult = try
         EnvInit = cowmachine_req:init_env(Req, Env),
         Context1 = cowmachine_req:set_env(EnvInit, Context),
         case cowmachine_decision_core:handle_request(State, Context1) of
@@ -116,9 +133,20 @@ request_1(Controller, Req, Env, Options, Context) ->
                    class => Class, reason => Reason,
                    stack => Stacktrace}, Req),
             {stop, cowboy_req:reply(500, Req)}
-    end.
+    end,
+	ReqResult.
 
 % @todo add the error controller as an application env, if not defined then just terminate with the corresponding error code.
+
+-spec handle_stop_request(ResponseCode, Site, Reason, Req, Env, State, Context) -> Result when
+	ResponseCode :: integer(), 
+	Site :: atom() | undefined, 
+	Reason :: any(), 
+	Req :: cowboy_req:req(),
+    Env :: cowboy_middleware:env(),
+	State :: cmstate(), 
+	Context :: cowmachine_req:context(),
+	Result :: {ok, Req, Env} | {stop, Req}.
 handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
     State1 = State#cmstate{
         controller = controller_http_error
@@ -154,13 +182,19 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
 %%
 %% Logging
 %%
-
+-spec log(Report) -> Result when
+	Report :: map(),
+	Result :: any().
 log(#{ level := Level } = Report) ->
     log_report(Level, Report#{
         in => cowmachine,
         node => node()
     }).
 
+-spec log(Report, Req) -> Result when
+	Report :: map(),
+	Req :: map(),
+	Result :: any().
 log(#{ level := Level } = Report, Req) when is_map(Req) ->
     Report1 = lists:foldl(fun({Key, Fun}, Acc) ->
                                   case Fun(Req) of
@@ -175,6 +209,10 @@ log(#{ level := Level } = Report, Req) when is_map(Req) ->
         node => node()
     }).
 
+-spec log_report(LogLevel, Report) -> Result when
+	LogLevel :: debug | info | notice | warning | error,
+	Report :: map(),
+	Result :: any().
 log_report(debug, Report) when is_map(Report) ->
     ?LOG_DEBUG(Report);
 log_report(info, Report) when is_map(Report) ->
@@ -186,16 +224,36 @@ log_report(warning, Report) when is_map(Report) ->
 log_report(error, Report) when is_map(Report) ->
     ?LOG_ERROR(Report).
 
+-spec src(IpInfo) -> Result when
+	IpInfo :: #{ peer := {IP, Port} } | any(),
+	Port :: integer(),
+	IP :: tuple(),
+	Result :: {ok, map()} | undefined.
 src(#{ peer := {IP, Port} }) -> {ok, ip_info(IP, Port)};
 src(_) -> undefined.
 
+-spec dst(DstInfo) -> Result when
+	DstInfo :: #{ sock := {IP, Port} } | #{ port := Port } | any(),
+	IP :: tuple(), 
+	Port :: integer(),
+	Result :: {ok, #{IPType => string(), port => Port}} | {ok, #{ port => Port }} | undefined,
+	IPType :: ip4 | ip6.
 dst(#{ sock := {IP, Port} } ) -> {ok, ip_info(IP, Port)};
 dst(#{ port := Port }) -> {ok, #{ port => Port }};
 dst(_) -> undefined.
 
+-spec path(PathInfo) -> Result when
+	PathInfo :: #{ path := Path } | any(),
+	Path :: any(),
+	Result :: {ok, Path} | undefined.
 path(#{ path := Path }) -> {ok, Path};
 path(_) -> undefined.
 
+-spec ip_info(IP, Port) -> Result when
+	IP :: tuple(), 
+	Port :: integer(),
+	IPType :: ip4 | ip6,
+	Result :: #{IPType => string(), port => Port}.
 ip_info(IP, Port) ->
     IPType = case tuple_size(IP) of 4 -> ip4; 8 -> ip6 end,
     #{IPType => inet_parse:ntoa(IP), port => Port}.

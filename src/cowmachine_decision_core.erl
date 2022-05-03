@@ -2,6 +2,7 @@
 %% @author Andy Gross <andy@basho.com>
 %% @author Bryan Fink <bryan@basho.com>
 %% @copyright 2007-2009 Basho Technologies
+%% @end
 %%
 %%    Licensed under the Apache License, Version 2.0 (the "License");
 %%    you may not use this file except in compliance with the License.
@@ -31,12 +32,28 @@
 -include("cowmachine_state.hrl").
 -include("cowmachine_log.hrl").
 
+-export_type([cmstate/0]).
+
+%% @doc Handle Cowmachine state request.
+%% @throws {stop_request, Code, Reason}
+
+-spec handle_request(CmState, Context) -> Result when
+	CmState :: cmstate(), 
+	Context :: cowmachine_req:context(),
+	Result :: {atom(), StateResult, Context} | {upgrade, UpgradeFun, StateResult, Context},
+	StateResult :: CmState,
+	UpgradeFun :: atom().
 handle_request(#cmstate{ controller = Controller } = CmState, Context) ->
     code:ensure_loaded(Controller),
     d(v3b13, CmState, Context).
 
 %% @doc Call the controller
--spec controller_call(atom(), #cmstate{}, term()) -> {term(), #cmstate{}, term()}.
+
+-spec controller_call(Callback, State, Context) -> Result when
+	Callback :: atom(),
+	State :: cmstate(),
+	Context :: term(),
+	Result :: {term(), #cmstate{}, term()}.
 controller_call(Callback, #cmstate{cache=Cache} = State, Context) ->
     case is_cacheable(Callback) of
         true ->
@@ -53,6 +70,10 @@ controller_call(Callback, #cmstate{cache=Cache} = State, Context) ->
             {T, State, Context1}
     end.
 
+-spec is_cacheable(Callback) -> Result when
+	Callback :: charsets_provided | content_types_provided | content_encodings_provided |
+				last_modified | generate_etag | any(),
+	Result :: boolean().			
 is_cacheable(charsets_provided) -> true;
 is_cacheable(content_types_provided) -> true;
 is_cacheable(content_encodings_provided) -> true;
@@ -60,15 +81,35 @@ is_cacheable(last_modified) -> true;
 is_cacheable(generate_etag) -> true;
 is_cacheable(_) -> false.
 
+-spec controller_call_process(ContentType, State, Context) -> Result when
+	ContentType :: cow_http_hd:media_type(), 
+	State :: cmstate(), 
+	Context :: cowmachine_req:context(),
+	Result :: {boolean() | ContentType, State, Context}.
 controller_call_process(ContentType, State, Context) ->
     {T, Context1} = cowmachine_controller:do_process(ContentType, State, Context),
     {T, State, Context1}.
 
-
+-spec d(DecisionID, State, Context) -> Result when
+	DecisionID :: v3b13 |	v3b12 |	v3b11 |	v3b10 |	v3b9 |	v3b9a |	v3b9b |	v3b8 |	v3b7 |	v3b6_upgrade |	v3b6 |	v3b5 |	v3b4 |	v3b3 |	v3c3 |	v3c4 |	v3d4 |	v3d5 |	v3e5 |	v3e6 |	v3f6 |	v3f7 |	v3g7 |	v3g8 |	v3g9 |	v3g11 |	v3h7 |	v3h10 |	v3h11 |	v3h12 |	v3i4 |	v3i7 |	v3i12 |	v3i13 |	v3j18 |	v3k5 |	v3k7 |	v3k13 |	v3l5 |	v3l7 |	v3l13 |	v3l14 |	v3l15 |	v3l17 |	v3m5 |	v3m7 |	v3m16 |	v3m20 |	v3m20b |	v3n5 |	v3n11 |	v3n16 |	v3o14 |	v3o16 |	v3o18 |	v3o18b |	v3o20 |	v3p3 |	v3p11, 
+	State :: cmstate(), 
+	Context :: cowmachine_req:context(),
+	Result :: {atom(), StateResult, Context} | {upgrade, UpgradeFun, StateResult, Context},
+	StateResult :: State,
+	UpgradeFun :: atom().
 d(DecisionID, State, Context) ->
     % webmachine_controller:log_d(Rs, DecisionID),
     decision(DecisionID, State, Context).
 
+%% @doc Cowmachine response.
+%% @throws {stop_request, Code}
+
+-spec respond(Code, State, Context) -> Result when
+	Code :: integer(), 
+	State :: cmstate(), 
+	Context :: cowmachine_req:context(),
+	%Result :: {State, Context}.
+	Result :: {term(), #cmstate{}, term()}.
 respond(Code, State, Context) ->
     {State1, Context1} = case Code of
         Ok when Ok >= 200, Ok =< 299 ->
@@ -112,9 +153,17 @@ respond(Code, State, Context) ->
     Context3 = cowmachine_req:set_response_code(Code, Context2),
     controller_call(finish_request, State2, Context3).
 
+-spec respond(Code, Headers, State, Context) -> Result when
+	Code :: integer(), 
+	Headers :: [{binary(), binary()}], 
+	State :: cmstate(), 
+	Context :: cowmachine_req:context(),
+	Result :: {term(), #cmstate{}, term()}.
 respond(Code, Headers, State, Context) ->
     ContextHs = cowmachine_req:set_resp_headers(Headers, Context),
     respond(Code, State, ContextHs).
+
+%% @throws {stop_request, Code, Reason}
 
 error_response(Code, Reason, State, Context) ->
     controller_call(finish_request, State, Context),
@@ -565,10 +614,10 @@ decision(v3n11, State, Context) ->
                             {S2, PathCtx}
                     end,
                     {Res, S4, C4} = accept_process_helper(LocS, LocCtx),
-                    case Res of
-                        {halt, Code} -> respond(Code, S4, C4);
+					case Res of
                         {error, _,_} -> error_response(Res, S4, C4);
                         {error, _} -> error_response(Res, S4, C4);
+						{halt, Code} -> respond(Code, S4, C4);
                         _ -> {stage1_ok, S4, C4}
                     end;
                 undefined ->
@@ -687,8 +736,9 @@ decision(v3p11, State, Context) ->
     end.
 
 
-%% Check if the request content-type is acceptable - if acceptable then also call the
+%% @doc Check if the request content-type is acceptable - if acceptable then also call the
 %% controller's process function.
+
 accept_process_helper(State, Context) ->
     case cowmachine_req:has_req_body(Context) orelse should_have_req_body(Context) of
         true ->
@@ -728,8 +778,8 @@ process_helper(ContentTypeAccepted, State, Context) ->
         {halt, _} -> Result;
         {error, _, _} -> Result;
         {error, _} -> Result;
-        true -> Result;
-        false -> Result;
+        true when is_boolean(Res) -> Result;
+        false when is_boolean(Res)  -> Result;
         RespBody ->
             C3 = cowmachine_req:set_resp_body(RespBody, C2),
             {body, S2, C3}

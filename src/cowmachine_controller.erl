@@ -1,6 +1,7 @@
 %% @author Justin Sheehy <justin@basho.com>
 %% @author Andy Gross <andy@basho.com>
 %% @copyright 2007-2009 Basho Technologies
+%% @end
 %%
 %%    Licensed under the Apache License, Version 2.0 (the "License");
 %%    you may not use this file except in compliance with the License.
@@ -26,6 +27,13 @@
 
 -include("cowmachine_state.hrl").
 
+-export_type([cmstate/0]).
+
+%% @doc Get default value by Key.
+-spec default(DefaultID, Context) -> Result when
+	DefaultID:: service_available |	resource_exists |	auth_required |	is_authorized |	forbidden |	upgrades_provided |	allow_missing_post |	malformed_request |	uri_too_long |	known_content_type |	valid_content_headers |	valid_entity_length |	options |	allowed_methods |	known_methods |	validate_content_checksum |	content_types_provided |	content_types_accepted |	delete_resource |	delete_completed |	post_is_create |	create_path |	base_uri |	process_post |	language_available |	charsets_provided |	content_encodings_provided |	transfer_encodings_provided |	variances |	is_conflict |	multiple_choices |	previously_existed |	moved_permanently |	moved_temporarily |	last_modified |	expires |	generate_etag |	finish_request,
+	Context :: cowmachine_req:context(),
+	Result :: no_charset | no_default | undefined | boolean() | list(binary()).
 default(service_available, _Context) ->
     true;
 default(resource_exists, _Context) ->
@@ -124,6 +132,10 @@ default(_, _Context) ->
 
 
 %% @doc Content types that are textual and should have a charset defined.
+
+-spec is_text(ContentType) -> Result when
+	ContentType :: cow_http_hd:media_type(),
+	Result :: boolean().
 is_text({<<"text">>, _, _}) -> true;
 is_text({<<"application">>, <<"x-javascript">>, _}) -> true;
 is_text({<<"application">>, <<"javascript">>, _}) -> true;
@@ -134,6 +146,14 @@ is_text(_Mime) -> false.
 
 %% @TODO Re-add logging code
 
+%% @doc Export and run function `Fun'.
+
+-spec do(Fun, State, Context) -> Result when
+	Fun :: atom(),
+	State :: cmstate(), 
+	Context :: cowmachine_req:context(),
+	Result :: {ContentType, Context},
+	ContentType :: cow_http_hd:media_type().
 do(Fun, #cmstate{ controller = Controller }, Context) when is_atom(Fun) ->
     case erlang:function_exported(Controller, Fun, 1) of
         true ->
@@ -145,6 +165,15 @@ do(Fun, #cmstate{ controller = Controller }, Context) when is_atom(Fun) ->
             end
     end.
 
+%% @doc Export and process `State' with `Context'.
+
+-spec do_process(ContentType, State, Context) -> Result when
+	ContentType :: cow_http_hd:media_type(), 
+	State :: cmstate(), 
+	Context :: cowmachine_req:context(),
+	Result :: {Res, Context},
+	Res :: boolean() | cowmachine_req:halt() | {error, any(), any()} | {error, any()} |
+			cowmachine_req:resp_body().
 do_process(ContentType, #cmstate{ controller = Controller }, Context) ->
     case erlang:function_exported(Controller, process, 4) of
         true ->
