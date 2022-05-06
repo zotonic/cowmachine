@@ -1,5 +1,4 @@
 .eunit
-doc/
 deps
 *.o
 *.beam
@@ -14,3 +13,6 @@ _build
 _checkout
 compile_commands.json
 rebar3
+doc/*
+!doc/style.css
+!doc/overview.edoc

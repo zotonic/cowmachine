@@ -1,7 +1,10 @@
 %% @author Marc Worrell <marc@worrell.nl>
 %% @copyright 2016-2019 Marc Worrell
 %%
-%% @doc Request functions for cowmachine
+%% @doc Request functions for cowmachine.
+%% @reference See more information related to Cowboy HTTP server for Erlang/OTP at 
+%% <a href="https://github.com/ninenines/cowboy">Cowboy</a>.
+%% @end
 
 %% Copyright 2016-2019 Marc Worrell
 %%
@@ -117,7 +120,9 @@
     any() => any()
 }.
 
+-type context() :: context_map() | tuple(). 
 %% The request context stores everything needed for the request handling.
+%%
 %% Inside Zotonic all functions work with a site specific context, this
 %% context has optionally a request. That is why the context is wrapped around
 %% the cowboy request.
@@ -125,12 +130,11 @@
 %% The cowmachine context must be the cowreq record, a tuple or a map.
 %% If it is a tuple then it is assumed to be a record then the cowreq
 %% is at position 2 and the cowenv at position 3.
--type context() :: context_map() | tuple().
 
-%% Used to stop a request with a specific HTTP status code
+
 -type halt() :: {error, term()} | {halt, 200..599}.
+%% Used to stop a request with a specific HTTP status code
 
-%% Response body, can be data, a file, device or streaming functions.
 -type resp_body() :: iodata()
                    | {device, Size::non_neg_integer(), file:io_device()}
                    | {device, file:io_device()}
@@ -141,13 +145,14 @@
                    | {stream, streamfun()}
                    | {stream, Size::non_neg_integer(), streamfun()}
                    | {writer, writerfun()}
-                   | undefined.
+                   | undefined. 
+%% Response body, can be data, a file, device or streaming functions.
 
-%% Streaming function, repeatedly called to fetch the next chunk
 -type streamfun() :: fun( ( parts(), context() ) -> {streamdata(), streamfun_next()} )
                    | fun( ( context() ) -> {streamdata(), streamfun_next()} )
                    | fun( () -> {streamdata(), streamfun_next()} )
                    | done.
+%% Streaming function, repeatedly called to fetch the next chunk
 
 -type streamfun_next() :: fun( ( context() ) -> {streamdata(), streamfun_next()} )
                         | fun( () -> {streamdata(), streamfun_next()} )
@@ -157,15 +162,16 @@
                     | {file, non_neg_integer(), file:filename_all()}
                     | {file, file:filename_all()}.
 
-%% Writer function, calls output function till finished
 -type writerfun() :: fun( (outputfun(), context()) -> context() ).
+%% Writer function, calls output function till finished
+
 -type outputfun() :: fun( (iodata(), IsFinal::boolean(), context()) -> context() ).
 
-%% Media types for accepted and provided content types
 -type media_type() :: binary()
                     | {binary(), binary(), list( {binary(), binary()} )}
                     | {binary(), binary()}
                     | {binary(), list( {binary(), binary()} )}.
+%% Media types for accepted and provided content types
 
 -type parts() :: all
                | {ranges(), Size :: non_neg_integer(), Boundary :: binary(), ContentType :: binary()}.
@@ -184,8 +190,12 @@
     ranges/0
 ]).
 
-%% @doc Set some intial metadata in the cowboy req
--spec init_env(cowboy_req:req(), cowboy_middleware:env()) -> cowboy_middleware:env().
+%% @doc Set some intial metadata in the cowboy req.
+
+-spec init_env(Req, Env) -> Result when
+	Req :: cowboy_req:req(), 
+	Env :: cowboy_middleware:env(), 
+	Result :: cowboy_middleware:env().
 init_env(Req, Env) ->
     Bindings = maps:get(bindings, Req, #{}),
     Env1 = lists:foldl(
@@ -213,14 +223,23 @@ init_env(Req, Env) ->
         cowmachine_cookies => cowboy_req:parse_cookies(Req)
     }.
 
+-spec ensure_proxy_args(Req, Env) -> Result when
+	Req :: cowboy_req:req(), 
+	Env :: cowboy_middleware:env(), 
+	Result :: cowboy_middleware:env().
 ensure_proxy_args(Req, Env) ->
     case maps:get(cowmachine_proxy, Env, undefined) of
         undefined -> cowmachine_proxy:update_env(Req, Env);
         IsProxy when is_boolean(IsProxy) -> Env
     end.
 
-%% @doc Initialize the context with the Req and Env
--spec init_context( cowboy_req:req(), cowboy_middleware:env(), undefined | map() | tuple()) -> context().
+%% @doc Initialize the context with the `Req' and `Env'.
+
+-spec init_context(Req, Env, Options) -> Result when
+	Req :: cowboy_req:req(),
+	Env :: cowboy_middleware:env(),
+	Options :: undefined | map() | tuple(),
+	Result :: context().
 init_context( Req, Env, undefined ) ->
     init_context(Req, Env, #{});
 init_context( Req, Env, M ) when is_map(M) ->
@@ -230,56 +249,86 @@ init_context( Req, Env, Tuple) when is_tuple(Tuple) ->
     setelement(3, T1, Env).
 
 %% @doc Update the cowboy request in the context.
--spec set_req(cowboy_req:req(), context()) -> context().
+
+-spec set_req(Req, Context) -> Result when
+	Req :: cowboy_req:req(),
+	Context :: context(),
+	Result :: context().
 set_req(Req, Context) when is_tuple(Context) ->
     erlang:setelement(2, Context, Req);
 set_req(Req, #{ cowreq := _ } = Map) ->
     Map#{ cowreq => Req }.
 
 %% @doc Fetch the cowboy request from the context.
--spec req(context()) -> cowboy_req:req().
+
+-spec req(Context) -> Result when
+	Context :: context(),
+	Result :: cowboy_req:req().
 req(Context) when is_tuple(Context) ->
     erlang:element(2, Context);
 req(#{ cowreq := Req }) ->
     Req.
 
 %% @doc Update the cowboy middleware env in the context.
--spec set_env(cowboy_middleware:env(), context()) -> context().
+
+-spec set_env(Env, Context) -> Result when
+	Env :: cowboy_middleware:env(), 
+	Context :: context(),
+	Result :: context().
 set_env(Env, Context) when is_tuple(Context) ->
     erlang:setelement(3, Context, Env);
 set_env(Env, #{ cowenv := _ } = Map) ->
     Map#{ cowenv => Env }.
 
 %% @doc Fetch the cowboy middleware env from the context.
--spec env(context()) -> cowboy_middleware:env().
+
+-spec env(Context) -> Result when
+	Context :: context(),
+	Result :: cowboy_middleware:env().
 env(Context) when is_tuple(Context) ->
     erlang:element(3, Context);
 env(#{ cowenv := Env }) ->
     Env.
 
+%% @doc Return the current cowmachine controller.
 
-%% @doc Return the current cowmachine controller
--spec controller(context()) -> module().
+-spec controller(Context) -> Result when
+	Context :: context(),
+	Result :: module().
 controller(Context) ->
     maps:get(cowmachine_controller, env(Context)).
 
-%% @doc Return the current cowmachine controller options
--spec controller_options(context()) -> list().
+%% @doc Return the current cowmachine controller options.
+
+-spec controller_options(Context) -> Result when
+	Context :: context(),
+	Result :: list().
 controller_options(Context) ->
     maps:get(cowmachine_controller_options, env(Context), []).
 
 %% @doc Return the cowmachine site.
--spec site(context()) -> atom().
+
+-spec site(Context) -> Site when
+	Context :: context(),
+	Site :: atom().
 site(Context) ->
     maps:get(cowmachine_site, env(Context)).
 
-%% @doc Return the request Method
--spec method(context()) -> binary().
+%% @doc Return the request Method.
+
+-spec method(Context) -> Result when
+	Context :: context(),
+	Result :: binary().
 method(Context) ->
     cowboy_req:method(req(Context)).
 
-%% @doc Return the http version as a tuple {minor,major}.
--spec version(context()) -> {Major::integer(), Minor::integer()}.
+%% @doc Return the http version as a tuple `{major, minor}'.
+
+-spec version(Context) -> Result when
+	Context :: context(),
+	Result :: {Major, Minor},
+	Major :: integer(), 
+	Minor :: integer().
 version(Context) ->
     case cowboy_req:version(req(Context)) of
         'HTTP/1.0' -> {1,0};
@@ -288,7 +337,10 @@ version(Context) ->
     end.
 
 %% @doc Return the base uri of the request.
--spec base_uri(context()) -> binary().
+
+-spec base_uri(Context) -> Result when
+	Context :: context(),
+	Result :: binary().
 base_uri(Context) ->
     Scheme = scheme(Context),
     Uri = [
@@ -304,49 +356,73 @@ base_uri(Context) ->
     ],
     iolist_to_binary(Uri).
 
-%% @doc Return the scheme used (https or http)
--spec scheme(context()) -> http|https.
+%% @doc Return the scheme used (`https' or `http').
+
+-spec scheme(Context) -> Result when
+	Context :: context(),
+	Result :: http | https.
 scheme(Context) ->
     case maps:get(cowmachine_forwarded_proto, env(Context)) of
         <<"http">> -> http;
         <<"https">> -> https
     end.
 
-%% @doc Return the http host
--spec host(context()) -> binary().
+%% @doc Return the http host.
+
+-spec host(Context) -> Result when
+	Context :: context(),
+	Result :: binary().
 host(Context) ->
     maps:get(cowmachine_forwarded_host, env(Context)).
 
-%% @doc Return the http port
--spec port(context()) -> integer().
+%% @doc Return the http port.
+
+-spec port(Context) -> Result when
+	Context :: context(),
+	Result :: integer().
 port(Context) ->
     maps:get(cowmachine_forwarded_port, env(Context)).
 
-%% @doc Check if the connection is secure (SSL)
--spec is_ssl(context()) -> boolean().
+%% @doc Check if the connection is secure (SSL).
+
+-spec is_ssl(Context) -> Result when
+	Context :: context(),
+	Result :: boolean().
 is_ssl(Context) ->
     https =:= scheme(Context).
 
-%% @doc Check if the request is forwarded by a proxy
--spec is_proxy(context()) -> boolean().
+%% @doc Check if the request is forwarded by a proxy.
+
+-spec is_proxy(Context) -> Result when
+	Context :: context(),
+	Result :: boolean().
 is_proxy(Context) ->
     maps:get(cowmachine_proxy, env(Context)).
 
-%% @doc Return the peer of this request, take x-forwarded-for into account if the peer
-%%      is an ip4 LAN address
--spec peer(context()) -> binary().
+%% @doc Return the peer of this request, take `x-forwarded-for' into account if the peer
+%%      is an ip4 LAN address.
+
+-spec peer(Context) -> Result when
+	Context :: context(),
+	Result :: binary().
 peer(Context) ->
     maps:get(cowmachine_remote, env(Context)).
 
-%% @doc Return the peer of this request, take x-forwarded-for into account if the peer
-%%      is an ip4 LAN address
--spec peer_ip(context()) -> tuple().
+%% @doc Return the peer of this request, take `x-forwarded-for' into account if the peer
+%%      is an ip4 LAN address.
+
+-spec peer_ip(Context) -> Result when
+	Context :: context(),
+	Result :: tuple().
 peer_ip(Context) ->
     maps:get(cowmachine_remote_ip, env(Context)).
 
 
-%% @doc Return the undecoded request path as-is, including the query string
--spec raw_path(context()) -> binary().
+%% @doc Return the undecoded request path as-is, including the query string.
+
+-spec raw_path(Context) -> Result when
+	Context :: context(),
+	Result :: binary().
 raw_path(Context) ->
     Path = cowboy_req:path(req(Context)),
     case qs(Context) of
@@ -354,38 +430,58 @@ raw_path(Context) ->
         Qs -> <<Path/binary, $?, Qs/binary>>
     end.
 
-%% @doc Return the undecoded request path as-is
--spec path(context()) -> binary().
+%% @doc Return the undecoded request path as-is.
+
+-spec path(Context) -> Result when
+	Context :: context(),
+	Result :: binary().
 path(Context) ->
     cowboy_req:path(req(Context)).
 
-%% @doc Return the undecoded query string, &lt;&lt;>> when no query string.
--spec qs(context()) -> binary().
+%% @doc Return the undecoded query string, `<<>>' when no query string.
+
+-spec qs(Context) -> Result when
+	Context :: context(),
+	Result :: binary().
 qs(Context) ->
     cowboy_req:qs(req(Context)).
 
-%% @doc Return the decoded query string, [] when no query string.
--spec req_qs(context()) -> list({binary(), binary()}).
+%% @doc Return the decoded query string, `[]' when no query string.
+
+-spec req_qs(Context) -> Result when
+	Context :: context(),
+	Result :: list({binary(), binary()}).
 req_qs(Context) ->
     Qs = qs(Context),
     cowmachine_util:parse_qs(Qs).
 
 %% @doc Fetch all bindings from the dispatcher.
--spec path_info(context()) -> cowboy_router:bindings().
+
+-spec path_info(Context) -> Result when
+	Context :: context(),
+	Result :: cowboy_router:bindings().
 path_info(Context) ->
     maps:get(bindings, req(Context), #{}).
 
 %% @doc Fetch a request header, the header must be a lowercase binary.
--spec get_req_header(binary(), context()) -> binary() | undefined.
+
+-spec get_req_header(Header, Context) -> Result when
+	Header :: binary(),
+	Context :: context(),
+	Result :: undefined | binary().
 get_req_header(H, Context) when is_binary(H) ->
     cowboy_req:header(H, req(Context)).
 
 %% @doc Fetch all request headers.
--spec get_req_headers(context()) -> #{ binary() => binary() }.
+
+-spec get_req_headers(Context) -> Result when
+	Context :: context(),
+	Result :: #{ binary() => binary() }.
 get_req_headers(Context) ->
     cowboy_req:headers(req(Context)).
 
 %% @doc Set the content type of the response
+
 -spec set_resp_content_type(cow_http_hd:media_type() | binary(), context()) -> context().
 set_resp_content_type(CT, Context) when is_binary(CT) ->
     set_resp_content_type(cow_http_hd:parse_content_type(CT), Context);
@@ -393,27 +489,40 @@ set_resp_content_type(CT, Context) when is_tuple(CT) ->
     Env = env(Context),
     set_env(Env#{ cowmachine_resp_content_type => CT }, Context).
 
-%% @doc Fetch the content type of the response
--spec resp_content_type(context()) -> cow_http_hd:media_type().
+%% @doc Fetch the content type of the response.
+
+-spec resp_content_type(Context) -> Result when
+	Context :: context(),
+	Result :: cow_http_hd:media_type().
 resp_content_type(Context) ->
     maps:get(cowmachine_resp_content_type, env(Context)).
 
+%% @doc Set the `is_range_ok' flag.
 
-%% @doc Set the 'is_range_ok' flag.
--spec set_range_ok(boolean(), context()) -> context().
+-spec set_range_ok(IsRangeOk, Context) -> Result when
+	IsRangeOk :: boolean(),
+	Context :: context(),
+	Result :: context().
 set_range_ok(IsRangeOk, Context) ->
     Env = env(Context),
     set_env(Env#{cowmachine_range_ok => IsRangeOk}, Context).
 
-%% @doc Fetch the 'is_range_ok' flag.
+%% @doc Fetch the `is_range_ok' flag.
+
 -spec is_range_ok(context()) -> boolean().
 is_range_ok(Context) ->
     maps:get(cowmachine_range_ok, env(Context)).
 
-%% @doc Add a response header, replacing an existing header with the same name.
+%% @doc Add a response header, replacing an existing header with the same name.<br/>
 %% The header must be a lowercased binary. If the value is a list of binaries then
 %% they are joined with a comma as separator.
--spec set_resp_header(binary(), binary()|list(binary())|string(), context()) -> context().
+%% @throws {http_invalid_location, Header, Value}
+
+-spec set_resp_header(Header, Value, Context) -> Result when
+	Header :: binary(),
+	Value :: binary() | [binary()] |string(),
+	Context :: context(),
+	Result :: context().
 set_resp_header(Header, [V|Rs], Context) when is_binary(Header), is_binary(V) ->
     V1 = iolist_to_binary([V, [ [", ", R] || R <- Rs] ]),
     set_resp_header(Header, V1, Context);
@@ -429,6 +538,13 @@ set_resp_header(Header, Value, Context)
 set_resp_header(Header, Value, Context) when is_binary(Header) ->
     set_resp_header_1(Header, Value, Context).
 
+%% @throws {http_invalid_location, Header, Value}
+
+-spec set_resp_header_1(Header, Value, Context) -> Result when
+	Header :: binary(),
+	Value :: binary() | [binary()] |string(),
+	Context :: context(),
+	Result :: context().
 set_resp_header_1(Header, Value, Context) ->
     V = z_convert:to_binary(Value),
     case cowmachine_util:is_valid_header(Header) andalso cowmachine_util:is_valid_header_value(V) of
@@ -440,108 +556,179 @@ set_resp_header_1(Header, Value, Context) ->
     end.
 
 %% @doc Set multiple response headers.
--spec set_resp_headers([{binary(), binary()}], context()) -> context().
+
+-spec set_resp_headers(Headers, Context) -> Result when
+	Headers :: [{binary(), binary()}], 
+	Context :: context(),
+	Result :: context().
 set_resp_headers([], Context) ->
     Context;
 set_resp_headers([{Header, Value}|Hs], Context) ->
     Context1 = set_resp_header(Header, Value, Context),
     set_resp_headers(Hs, Context1).
 
-%% @doc Fetch the response header, undefined if not set.
--spec get_resp_header(binary(), context()) -> binary() | undefined.
+%% @doc Fetch the response header, `undefined' if not set.
+
+-spec get_resp_header(Header, Context) -> Result when
+	Header :: binary(),
+	Context :: context(),
+	Result :: undefined | binary().
 get_resp_header(Header, Context) when is_binary(Header) ->
     Hs = maps:get(resp_headers, req(Context), #{}),
     maps:get(Header, Hs, undefined).
 
 %% @doc Fetch all response headers.
--spec get_resp_headers(context()) -> map().
+
+-spec get_resp_headers(Context) -> Result when
+	Context :: context(),
+	Result :: map().
 get_resp_headers(Context) ->
     maps:get(resp_headers, req(Context), #{}).
 
 %% @doc Remove the response header from the list for response headers.
--spec remove_resp_header(binary(), context()) -> context().
+
+-spec remove_resp_header(Header, Context) -> Result when
+	Header :: binary(),
+	Context :: context(),
+	Result :: context().
 remove_resp_header(Header, Context) when is_binary(Header) ->
     Req = cowboy_req:delete_resp_header(Header, req(Context)),
     set_req(Req, Context).
 
-%% @doc Add a cookie to the response cookies
--spec set_resp_cookie(binary(), binary(), list(), context()) -> context().
+%% @doc Add a cookie to the response cookies.
+
+-spec set_resp_cookie(Key, Value, Options, Context) -> Result when
+	Key :: binary(),
+	Value :: binary(),
+	Options :: list(),
+	Context :: context(),
+	Result :: context().
 set_resp_cookie(Key, Value, Options, Context) when is_binary(Key), is_binary(Value) ->
     Options1 = [ {K,V} || {K,V} <- Options, V =/= undefined ],
     Req = cowboy_req:set_resp_cookie(Key, Value, req(Context), maps:from_list(Options1)),
     set_req(Req, Context).
 
 %% @doc Fetch all response cookies.
--spec get_resp_cookies(context()) -> [ {binary(),binary()} ].
+
+-spec get_resp_cookies(Context) -> Result when
+	Context :: context(),
+	Result :: [{binary(), binary()}].
 get_resp_cookies(Context) ->
     maps:to_list(maps:get(resp_cookies, req(Context))).
 
 %% @doc Fetch the value of a cookie.
--spec get_cookie_value(binary(), context()) -> binary() | undefined.
+
+-spec get_cookie_value(Name, Context) -> Result when
+	Name :: binary(),
+	Context :: context(),
+	Result :: undefined | binary().
 get_cookie_value(Name, Context) when is_binary(Name) ->
     Cookies = maps:get(cowmachine_cookies, env(Context)),
     proplists:get_value(Name, Cookies).
 
 %% @doc Fetch all cookies.
--spec req_cookie(context()) -> list().
+
+-spec req_cookie(Context) -> Result when
+	Context :: context(),
+	Result :: list().
 req_cookie(Context) ->
     maps:get(cowmachine_cookies, env(Context)).
 
 %% @doc Set the preliminary HTTP response code for the request. This can be changed.
--spec set_response_code(integer(), context()) -> context().
+
+-spec set_response_code(Code, Context) -> Result when
+	Code :: integer(),
+	Context :: context(),
+	Result :: context().
 set_response_code(Code, Context) when is_integer(Code) ->
     Env = env(Context),
     set_env(Env#{cowmachine_resp_code => Code}, Context).
 
 %% @doc Fetch the preliminary HTTP response code for the request. This can be changed.
--spec response_code(context()) -> integer().
+
+-spec response_code(Context) -> Result when
+	Context :: context(),
+	Result :: integer().
 response_code(Context) ->
     maps:get(cowmachine_resp_code, env(Context)).
 
 %% @doc Set the chosen charset.
--spec set_resp_chosen_charset(binary()|undefined, context()) -> context().
+
+-spec set_resp_chosen_charset(CharSet, Context) -> Result when
+	CharSet :: undefined | binary(), 
+	Context :: context(),
+	Result :: context().
 set_resp_chosen_charset(CharSet, Context) when is_binary(CharSet); CharSet =:= undefined ->
     Env = env(Context),
     set_env(Env#{cowmachine_resp_chosen_charset => CharSet}, Context).
 
 %% @doc Get the chosen charset.
--spec resp_chosen_charset(context()) -> binary() | undefined.
+
+-spec resp_chosen_charset(Context) -> Result when
+	Context :: context(),
+	Result :: undefined | binary().
 resp_chosen_charset(Context) ->
     maps:get(cowmachine_resp_chosen_charset, env(Context)).
 
-%% @doc Set the transfer encoding
--spec set_resp_transfer_encoding({binary(), function()}, context()) -> context().
+%% @doc Set the transfer encoding.
+
+-spec set_resp_transfer_encoding(Enc, Context) -> Result when
+	Enc :: {binary(), function()},
+	Context :: context(),
+	Result :: context().
 set_resp_transfer_encoding(Enc, Context) ->
     Env = env(Context),
     set_env(Env#{cowmachine_resp_transfer_encoding => Enc}, Context).
 
 %% @doc Get the transfer encoding.
--spec resp_transfer_encoding(context()) -> {binary(), function()} | undefined.
+
+-spec resp_transfer_encoding(Context) -> Result when
+	Context :: context(),
+	Result :: undefined | {binary(), function()}.
 resp_transfer_encoding(Context) ->
     maps:get(cowmachine_resp_transfer_encoding, env(Context)).
 
-%% @doc Set the content encoding
--spec set_resp_content_encoding(binary(), context()) -> context().
+%% @doc Set the content encoding.
+
+-spec set_resp_content_encoding(Enc, Context) -> Result when
+	Enc :: binary(),
+	Context :: context(),
+	Result :: context().
 set_resp_content_encoding(Enc, Context) when is_binary(Enc) ->
     Env = env(Context),
     set_env(Env#{cowmachine_resp_content_encoding => Enc}, Context).
 
 %% @doc Get the content encoding.
--spec resp_content_encoding(context()) -> binary().
+
+-spec resp_content_encoding(Context) -> Result when
+	Context :: context(),
+	Result :: binary().
 resp_content_encoding(Context) ->
     maps:get(cowmachine_resp_content_encoding, env(Context)).
 
-%% @doc Encode the content according to the selected content encoding
--spec encode_content(iodata(), context()) -> iolist().
+%% @doc Encode the content according to the selected content encoding.
+
+-spec encode_content(Content, Context) -> Result when
+	Content :: iodata(),
+	Context :: context(),
+	Result :: iolist().
 encode_content(Content, Context) ->
     encode_content_1(resp_content_encoding(Context), Content).
 
+-spec encode_content_1(Enc, Content) -> Result when
+	Enc :: binary(),
+	Content :: iodata(),
+	Result :: iolist().
 encode_content_1(<<"gzip">>, Content) -> zlib:gzip(Content);
 encode_content_1(<<"identity">>, Content) -> Content.
 
 
-%% @doc Set the 'redirect' flag, used during POST processing to check if a 303 should be returned.
--spec set_resp_redirect(boolean() | binary(), context()) -> context().
+%% @doc Set the `redirect' flag, used during POST processing to check if a `303' should be returned.
+
+-spec set_resp_redirect(Location, Context) -> Result when
+	Location :: boolean() | binary(), 
+	Context :: context(),
+	Result :: context().
 set_resp_redirect(Location, Context) when is_binary(Location) ->
     Env = env(Context),
     Context1 = set_resp_header(<<"location">>, Location, Context),
@@ -550,35 +737,55 @@ set_resp_redirect(IsRedirect, Context) when is_boolean(IsRedirect) ->
     Env = env(Context),
     set_env(Env#{ cowmachine_resp_redirect => IsRedirect }, Context).
 
-%% @doc Return the 'redirect' flag, used during POST processing to check if a 303 should be returned.
--spec resp_redirect(context()) -> boolean().
+%% @doc Return the `redirect' flag, used during POST processing to check if a `303' should be returned.
+
+-spec resp_redirect(Context) -> Result when
+	Context :: context(),
+	Result :: boolean().
 resp_redirect(Context) ->
     maps:get(cowmachine_resp_redirect, env(Context)).
 
 %% @doc Set the dispatch path of the request.
--spec set_disp_path(binary(), context()) -> context().
+
+-spec set_disp_path(Path, Context) -> Result when
+	Path :: binary(),
+	Context :: context(),
+	Result :: context().
 set_disp_path(Path, Context) ->
     Env = env(Context),
     set_env(Env#{cowmachine_disp_path => Path}, Context).
 
 %% @doc Return the dispatch path of the request.
--spec disp_path(context()) -> binary() | undefined.
+
+-spec disp_path(Context) -> Result when
+	Context :: context(),
+	Result :: undefined | binary().
 disp_path(Context) ->
     maps:get(cowmachine_disp_path, env(Context)).
 
 %% @doc Set the response body, this must be converted to a response body that Cowboy can handle.
--spec set_resp_body(resp_body(), context()) -> context().
+
+-spec set_resp_body(RespBody, Context) -> Result when
+	RespBody :: resp_body(),
+	Context :: context(),
+	Result :: context().
 set_resp_body(RespBody, Context) ->
     Env = env(Context),
     set_env(Env#{cowmachine_resp_body => RespBody}, Context).
 
 %% @doc Return the response body, this must be converted to a response body that Cowboy can handle.
--spec resp_body(context()) -> resp_body().
+
+-spec resp_body(Context) -> Result when
+	Context :: context(),
+	Result :: resp_body().
 resp_body(Context) ->
     maps:get(cowmachine_resp_body, env(Context)).
 
 %% @doc Check if a response body has been set.
--spec has_resp_body(context()) -> boolean().
+
+-spec has_resp_body(Context) -> Result when
+	Context :: context(),
+	Result :: boolean().
 has_resp_body(Context) ->
     case maps:get(cowmachine_resp_body, env(Context)) of
         undefined -> false;
@@ -587,19 +794,28 @@ has_resp_body(Context) ->
         _ -> true
     end.
 
-
 %% @doc Check if the request has a body
--spec has_req_body(context()) -> boolean().
+
+-spec has_req_body(Context) -> Result when
+	Context :: context(),
+	Result :: boolean().
 has_req_body(Context) ->
     cowboy_req:has_body(req(Context)).
 
-%% @doc Fetch the request body as a single binary.
-%% Per default we don't receive more than ~128K bytes.
--spec req_body(context()) -> {binary()|undefined, context()}.
+%% @doc Fetch the request body as a single binary.<br/>
+%% Per default we don't receive more than `~128K' bytes.
+%% @equiv req_body(128*1024, Context)
+
+-spec req_body(Context) -> Result when
+	Context :: context(),
+	Result :: {undefined | binary(), context()}.
 req_body(Context) ->
     req_body(128*1024, Context).
 
--spec req_body(non_neg_integer(), context()) -> {binary()|undefined, context()}.
+-spec req_body(MaxLength, Context) -> Result when
+	MaxLength :: non_neg_integer(),
+	Context :: context(),
+	Result :: {undefined | binary(), context()}.
 req_body(MaxLength, Context) when MaxLength > 0 ->
     Req = req(Context),
     Opts = #{
@@ -619,7 +835,10 @@ req_body(MaxLength, Context) when MaxLength > 0 ->
             {undefined, set_req(Req2, Context)}
     end.
 
--spec stream_req_body(non_neg_integer(), context()) -> {ok|more, binary(), context()}.
+-spec stream_req_body(ChunkSize, Context) -> Result when
+	ChunkSize :: non_neg_integer(), 
+	Context :: context(),
+	Result :: {ok | more, binary(), context()}.
 stream_req_body(ChunkSize, Context) ->
     Opts = #{
         % length => 1024*1024*1024,
@@ -630,13 +849,20 @@ stream_req_body(ChunkSize, Context) ->
     {Next, Chunk, set_req(Req1, Context)}.
 
 
--spec set_metadata(atom(), term(), context()) -> context().
+-spec set_metadata(Key, Value, Context) -> Result when
+	Key :: atom(), 
+	Value :: term(),
+	Context :: context(),
+	Result :: context().
 set_metadata(Key, Value, Context) ->
     Env = env(Context),
     Env1 = Env#{ {cowmachine, Key} => Value },
     set_env(Env1, Context).
 
--spec get_metadata(atom(), context()) -> term() | undefined.
+-spec get_metadata(Key, Context) -> Result when
+	Key :: atom(), 
+	Context :: context(),
+	Result :: undefined | term().
 get_metadata('chosen-charset', Context) ->
     resp_chosen_charset(Context);
 get_metadata('content-encoding', Context) ->

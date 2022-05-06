@@ -5,7 +5,11 @@
     ]).
 
 %% @doc Upgrade the request to a websocket request
--spec upgrade(atom(), cowmachine_req:context()) -> {ok, cowboy_req:req(), cowboy_middleware:env()}.
+
+-spec upgrade(Handler, Context) -> Result when
+	Handler :: atom(), 
+	Context :: cowmachine_req:context(),
+	Result :: {ok, cowboy_req:req(), cowboy_middleware:env()}.
 upgrade(Handler, Context) ->
     Req = cowmachine_req:req(Context),
     Env = cowmachine_req:env(Context),

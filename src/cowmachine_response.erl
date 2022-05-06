@@ -1,7 +1,13 @@
 %% @author Justin Sheehy <justin@basho.com>
 %% @author Andy Gross <andy@basho.com>
-%% @copyright 2007-2009 Basho Technologies, 2018-2022 Marc Worrell
+%% @copyright 2007-2009 Basho Technologies, 2018-2022 Marc Worrell.
 %% Based on mochiweb_request.erl, which is Copyright 2007 Mochi Media, Inc.
+%% @doc Response functions, generate the response inclusive body and headers.
+%% The body can be sourced from multiple sources. These sources include files,
+%% binary files and functions.
+%% The response body function handles range requests.
+%% @reference <a href="https://github.com/mochi/mochiweb/blob/main/src/mochiweb_request.erl">mochiweb_request.erl</a>
+%% @end
 %%
 %%    Licensed under the Apache License, Version 2.0 (the "License");
 %%    you may not use this file except in compliance with the License.
@@ -15,10 +21,6 @@
 %%    See the License for the specific language governing permissions and
 %%    limitations under the License.
 
-%% @doc Response functions, generate the response inclusive body and headers.
-%% The body can be sourced from multiple sources. These sources include files,
-%% binary files and functions.
-%% The response body function handles range requests.
 
 -module(cowmachine_response).
 -author('Marc Worrell <marc@worrell.nl>').
@@ -35,6 +37,9 @@
 
 -define(FILE_CHUNK_LENGTH, 16#80000). % 512KB
 
+%% @doc Returns server header.
+-spec server_header() -> Result when
+	Result :: binary().
 server_header() ->
     case application:get_env(cowmachine, server_header) of
         {ok, Server} -> z_convert:to_binary(Server);
@@ -45,9 +50,13 @@ server_header() ->
             end
     end.
 
--spec send_response(cowmachine_req:context()) -> {ok, Req, Env} | {stop, Req}
-    when Req :: cowboy_req:req(),
-         Env :: cowboy_middleware:env().
+%% @doc Send responce.
+-spec send_response(Context) -> Result
+    when 
+		Context :: cowmachine_req:context(),
+		Result :: {ok, Req, Env} | {stop, Req},
+		Req :: cowboy_req:req(),
+        Env :: cowboy_middleware:env().
 send_response(Context) ->
     ControllerOptions = cowmachine_req:controller_options(Context),
     HttpStatusCode = case proplists:get_value(http_status_code, ControllerOptions) of
@@ -61,6 +70,10 @@ send_response(Context) ->
 %% Internal functions
 %% --------------------------------------------------------------------------------------------------
 
+-spec send_response_range(Code, Context) -> Result when
+	Code :: integer(),
+	Context :: cowmachine_req:context(),
+	Result :: cowmachine_req:context().
 send_response_range(200, Context) ->
     {Range, Context1} = get_range(Context),
     case Range of
@@ -89,10 +102,20 @@ send_response_range(200, Context) ->
 send_response_range(Code, Context) ->
     send_response_code(Code, all, Context).
 
+-spec send_response_code(Code, Parts, Context) -> Result when
+	Code :: integer(), 
+	Parts :: cowmachine_req:parts(),
+	Context :: cowmachine_req:context(),
+	Result :: cowmachine_req:context().
 send_response_code(Code, Parts, Context) ->
     send_response_bodyfun(cowmachine_req:resp_body(Context), Code, Parts, Context).
 
-
+-spec send_response_bodyfun(RespBody, Code, Parts, Context) -> Result when
+	RespBody :: cowmachine_req:resp_body(),
+	Code :: integer(), 
+	Parts :: cowmachine_req:parts(),
+	Context :: cowmachine_req:context(),
+	Result :: cowmachine_req:context().
 % send_response_bodyfun(undefined, Code, Parts, Context) ->
 %     send_response_bodyfun(<<>>, Code, Parts, Context);
 send_response_bodyfun({device, IO}, Code, Parts, Context) ->
@@ -174,7 +197,13 @@ send_response_bodyfun(Body, Code, Parts, Context) ->
     Context1 = cowmachine_req:set_req(Req1, Context),
     send_parts(Context1, Parts, iolist_to_binary(Body)).
 
-
+-spec start_response_stream(Code, Length, InitialStream, Parts, Context) -> Result when
+	Code :: integer(),
+	Length :: non_neg_integer() | undefined,
+	InitialStream :: function() | tuple(),
+	Parts :: cowmachine_req:parts(),
+	Context :: cowmachine_req:context(),
+	Result :: cowmachine_req:context().
 start_response_stream(Code, Length, InitialStream, Parts, Context) ->
     {Code1, Context1, Parts1} = case is_streaming_range(InitialStream) of
         false when Parts =/= all ->
@@ -200,6 +229,10 @@ start_response_stream(Code, Length, InitialStream, Parts, Context) ->
     end,
     send_stream_body(FirstHunk, Context2).
 
+-spec stream_initial_fun(Fun, Parts) -> Result when 
+	Fun :: function(), 
+	Parts :: cowmachine_req:parts(), 
+	Result :: done | function().
 stream_initial_fun(F, Parts) when is_function(F, 2) ->
     fun(Ctx) -> F(Ctx, Parts) end;
 stream_initial_fun(F, _Parts) when is_function(F) ->
@@ -208,7 +241,11 @@ stream_initial_fun(done, _Parts) ->
     done.
 
 
-%% Check if we support ranges on the data stream (body or function)
+%% @doc Check if we support ranges on the data stream (body or function)
+-spec is_streaming_range(Stream) -> Result when
+	Stream :: Fun | {binary(), Fun} | {any(), Fun} | {any, done},
+	Fun :: function(),
+	Result :: boolean().
 is_streaming_range(Fun) when is_function(Fun, 2) -> true;
 is_streaming_range(Fun) when is_function(Fun) -> false;
 is_streaming_range({<<>>, Fun}) when is_function(Fun, 2) ->
@@ -221,6 +258,12 @@ is_streaming_range({_, done}) -> false.
 
 
 %% @todo Add the cookies!
+
+-spec response_headers(Code, Length, Context) -> Result when
+	Code :: integer(), 
+	Length :: non_neg_integer() | undefined, 
+	Context :: cowmachine_req:context(),
+	Result :: map().
 response_headers(Code, Length, Context) ->
     Hdrs = cowmachine_req:get_resp_headers(Context),
     Hdrs1 = case Code of
@@ -236,6 +279,9 @@ response_headers(Code, Length, Context) ->
         <<"date">> => cowboy_clock:rfc1123()
     }.
 
+-spec response_headers(Context) -> Result when
+	Context :: cowmachine_req:context(),
+	Result :: map().
 response_headers(Context) ->
     Hdrs = cowmachine_req:get_resp_headers(Context),
     Hdrs#{
@@ -243,8 +289,18 @@ response_headers(Context) ->
         <<"date">> => cowboy_clock:rfc1123()
     }.
 
-
 % With continuation
+%% @doc Send stream body.
+
+-spec send_stream_body(FunContext, Context) -> Result when	
+	FunContext :: {InitialData, InitialFun} | InitialFun,
+	InitialData :: binary() | {file, Filename} | {file, Size, Filename} | done | WriterFun, 
+	Filename :: filelib:filename_all(),
+	WriterFun :: function(),
+	Size :: non_neg_integer(),
+	InitialFun :: function(),
+	Context :: cowmachine_req:context(),
+	Result :: cowmachine_req:context().
 send_stream_body({<<>>, done}, Context) ->
     % @TODO: in cowboy this give a wrong termination with two 0 size chunks
     send_chunk(Context, <<>>, fin);
@@ -270,6 +326,10 @@ send_stream_body(WriterFun, Context) when is_function(WriterFun, 0) ->
     _ = WriterFun(),
     Context.
 
+-spec next(Fun, Context) -> Result when 
+	Fun :: fun((any()) -> any()),
+	Context :: cowmachine_req:context(),
+	Result :: Context. 
 next(Fun, Context) when is_function(Fun, 1) ->
     send_stream_body(Fun(Context), Context);
 next(Fun, Context) when is_function(Fun, 0) ->
@@ -277,12 +337,29 @@ next(Fun, Context) when is_function(Fun, 0) ->
 next(done, Context) ->
     Context.
 
+-spec fin(Next) -> Result when
+	Next :: done | any(),
+	Result :: fin | nofin.
 fin(done) -> fin;
 fin(_) -> nofin.
 
+%%@equiv send_file_body_loop(Context, 0, Length, IO, fin)
+
+-spec send_device_body(Context, Length, IO) -> Result when
+	Context :: cowmachine_req:context(),
+	Length :: non_neg_integer(), 
+	IO :: file:io_device(), 
+	Result :: cowmachine_req:context().
 send_device_body(Context, Length, IO) ->
     send_file_body_loop(Context, 0, Length, IO, fin).
 
+-spec send_file_body(Context, Length, File, FinNoFin) -> Result when
+	Context :: cowmachine_req:context(),
+	Length :: non_neg_integer(), 
+	File :: Filename | file:iodata(),
+	Filename :: file:name_all(),
+	FinNoFin :: fin | nofin,
+	Result :: cowmachine_req:context().
 send_file_body(Context, Length, Filename, FinNoFin) ->
     {ok, FD} = file:open(Filename, [read,raw,binary]),
     try
@@ -291,6 +368,11 @@ send_file_body(Context, Length, Filename, FinNoFin) ->
         file:close(FD)
     end.
 
+-spec send_device_body_parts(Context, Parts, IO) -> Result when
+	Context :: cowmachine_req:context(),
+	Parts :: cowmachine_req:parts(),
+	IO :: file:io_device(),
+	Result :: cowmachine_req:context().
 send_device_body_parts(Context, {[{From,Length}], _Size, _Boundary, _ContentType}, IO) ->
     {ok, _} = file:position(IO, From), 
     send_file_body_loop(Context, 0, Length, IO, fin);
@@ -305,7 +387,11 @@ send_device_body_parts(Context, {Parts, Size, Boundary, ContentType}, IO) ->
         Parts),
     send_chunk(Context, end_boundary(Boundary), fin).
 
--spec send_file_body_parts( cowmachine_req:context(), cowmachine_req:parts(), file:filename_all() ) -> ok | {error, term()}.
+-spec send_file_body_parts(Context, Parts, Filename) -> Result when
+	Context :: cowmachine_req:context(),
+	Parts :: cowmachine_req:parts(),
+	Filename :: file:filename_all(),
+	Result :: ok | {error, term()}.
 send_file_body_parts(Context, Parts, Filename) ->
     {ok, FD} = file:open(Filename, [raw,binary]),
     try
@@ -314,7 +400,11 @@ send_file_body_parts(Context, Parts, Filename) ->
         file:close(FD)
     end.
 
--spec send_parts( cowmachine_req:context(), cowmachine_req:parts(), binary() ) -> cowmachine_req:context().
+-spec send_parts(Context, Parts, Bin) -> Result when
+	Context :: cowmachine_req:context(),
+	Parts :: cowmachine_req:parts(),
+	Bin :: binary(),
+	Result :: cowmachine_req:context().
 send_parts(Context, {[{From,Length}], _Size, _Boundary, _ContentType}, Bin) ->
     send_chunk(Context, binary:part(Bin,From,Length), fin);
 send_parts(Context, {Parts, Size, Boundary, ContentType}, Bin) ->
@@ -330,7 +420,13 @@ send_parts(Context, {Parts, Size, Boundary, ContentType}, Bin) ->
         Parts),
     send_chunk(Context, end_boundary(Boundary), fin).
 
-
+-spec send_file_body_loop(Context, Offset, Size, Device, FinNoFin) -> Result when
+	Context :: cowmachine_req:context(),
+	Offset :: integer(), 
+	Size :: non_neg_integer(), 
+	Device :: file:io_device(), 
+	FinNoFin :: fin | nofin, 
+	Result :: cowmachine_req:context().
 send_file_body_loop(Context, Offset, Size, _Device, FinNoFin) when Offset =:= Size ->
     send_chunk(Context, <<>>, FinNoFin);
 send_file_body_loop(Context, Offset, Size, Device, FinNoFin) when Size - Offset =< ?FILE_CHUNK_LENGTH ->
@@ -341,6 +437,10 @@ send_file_body_loop(Context, Offset, Size, Device, FinNoFin) ->
     send_chunk(Context, Data, nofin),
     send_file_body_loop(Context, Offset+iolist_size(Data), Size, Device, FinNoFin).
 
+-spec send_writer_body(Context, BodyFun) -> Result when
+	Context :: cowmachine_req:context(),
+	BodyFun :: function(), 
+	Result :: any().
 send_writer_body(Context, BodyFun) ->
     BodyFun(fun(Data, false, ContextW) ->
                     send_chunk(ContextW, Data, nofin);
@@ -349,6 +449,11 @@ send_writer_body(Context, BodyFun) ->
             end,
             Context).
 
+-spec send_chunk(Context, Data, IsFin) -> Result when
+	Context :: cowmachine_req:context(),
+	Data :: iolist() | binary(),
+	IsFin :: fin | nofin,
+	Result :: Context.
 send_chunk(Context, <<>>, nofin) ->
     Context;
 send_chunk(Context, [], nofin) ->
@@ -359,8 +464,10 @@ send_chunk(Context, Data, FinNoFin) ->
     ok = cowboy_req:stream_body(Data1, FinNoFin, Req),
     Context.
 
--spec get_range(cowmachine_req:context()) -> {Range, cowmachine_req:context()}
-    when Range :: undefined | [ {integer()|none, integer()|none} ].
+-spec get_range(Context) -> Result when
+    Context :: cowmachine_req:context(),
+	Result :: {Range, cowmachine_req:context()},
+	Range :: undefined | [ {integer()|none, integer()|none} ].
 get_range(Context) ->
     Env = cowmachine_req:env(Context),
     Range = case maps:get(cowmachine_range_ok, Env) of
@@ -378,7 +485,9 @@ get_range(Context) ->
     Env1 = Env#{ cowmachine_range => Range },
     {Range, cowmachine_req:set_env(Env1, Context)}.
 
--spec parse_range_request(binary()|undefined) -> undefined | [{integer()|none,integer()|none}].
+-spec parse_range_request(RangeRequest) -> Result when 
+	RangeRequest :: undefined | binary(),
+	Result :: undefined | [{integer()|none,integer()|none}].
 parse_range_request(<<"bytes=", RangeString/binary>>) ->
     try
         Ranges = binary:split(binary:replace(RangeString, <<" ">>, <<>>, [global]), <<",">>, [global]),
@@ -403,11 +512,19 @@ parse_range_request(_) ->
     undefined.
 
 % Map request ranges to byte ranges, taking the total body length into account.
--spec range_parts([{integer()|none,integer()|none}], integer()) -> [{integer(),integer()}].
+
+-spec range_parts(Ranges, Size) -> Result when
+	Ranges :: [{integer() | none, integer() | none}], 
+	Size :: integer(),
+	Result :: [{integer(),integer()}].
 range_parts(Ranges, Size) ->
     Ranges1 = [ range_skip_length(Spec, Size) || Spec <- Ranges ],
     [ R || R <- Ranges1, R =/= invalid_range ].
 
+-spec range_skip_length(Spec, Size) -> Result when
+	Spec :: {integer() | none, integer() | none},
+	Size :: integer(),
+	Result :: invalid_range | {integer(),integer()}.
 range_skip_length({none, R}, Size) when R =< Size, R >= 0 ->
     {Size - R, R};
 range_skip_length({none, _OutOfRange}, Size) ->
@@ -421,8 +538,9 @@ range_skip_length({Start, End}, Size) when 0 =< Start, Start =< End, End < Size 
 range_skip_length({_OutOfRange, _End}, _Size) ->
     invalid_range.
 
--spec get_resp_body_size(cowmachine_req:resp_body()) -> 
-          {ok, integer(), cowmachine_req:resp_body()}
+-spec get_resp_body_size(RespBody) -> Result when
+	RespBody :: cowmachine_req:resp_body(),
+	Result :: {ok, integer(), cowmachine_req:resp_body()}
         | {error, nosize}.
 get_resp_body_size({device, Size, _} = Body) ->
     {ok, Size, Body};
@@ -442,6 +560,11 @@ get_resp_body_size(L) when is_list(L) ->
 get_resp_body_size(_) ->
     {error, nosize}.
 
+-spec make_range_headers(Parts, Size, ContentType) -> Result when
+	Parts :: list(), 
+	Size :: non_neg_integer(),
+	ContentType :: binary() | undefined,
+	Result :: {list(), none} | {list(), binary()}.
 make_range_headers([{Start, Length}], Size, _ContentType) ->
     HeaderList = [{<<"accept-ranges">>, <<"bytes">>},
                   {<<"content-range">>, iolist_to_binary([
@@ -460,6 +583,13 @@ make_range_headers(Parts, Size, ContentType) when is_list(Parts) ->
                   {<<"content-length">>, integer_to_binary(TotalLength)}],
     {HeaderList, Boundary}.
 
+-spec part_preamble(Boundary, CType, Start, Length, Size) -> Result when
+	Boundary :: binary(), 
+	CType :: binary(), 
+	Start :: non_neg_integer(), 
+	Length :: non_neg_integer(), 
+	Size :: non_neg_integer(), 
+	Result :: [binary()].
 part_preamble(Boundary, CType, Start, Length, Size) ->
     [boundary(Boundary),
      <<"content-type: ">>, CType,
@@ -468,14 +598,26 @@ part_preamble(Boundary, CType, Start, Length, Size) ->
         <<"/">>, integer_to_binary(Size),
      <<"\r\n\r\n">>].
 
+-spec boundary() -> Result when
+	Result :: binary().
 boundary() ->
     A = rand:uniform(100000000),
     B = rand:uniform(100000000),
     <<(integer_to_binary(A))/binary, $_, (integer_to_binary(B))/binary>>.
 
+-spec boundary(B) -> Result when
+	B :: binary(),
+	Result :: binary().
 boundary(B)     -> <<"--", B/binary, "\r\n">>.
+
+-spec end_boundary(B) -> Result when
+	B :: binary(),
+	Result :: binary().
 end_boundary(B) -> <<"--", B/binary, "--\r\n">>.
 
+-spec make_io(Integer) -> Result when
+	Integer :: integer(),
+	Result :: list().
 make_io(Integer) when is_integer(Integer) ->
     integer_to_list(Integer).
 % make_io(Atom) when is_atom(Atom) ->
@@ -483,8 +625,10 @@ make_io(Integer) when is_integer(Integer) ->
 % make_io(Io) when is_list(Io); is_binary(Io) ->
 %     Io.
 
-
--spec iodevice_size(file:io_device()) -> integer().
+-spec iodevice_size(IoDevice) -> Result when
+	IoDevice :: file:io_device(),
+	Size :: non_neg_integer(),
+	Result :: Size.
 iodevice_size(IoDevice) ->
     {ok, Size} = file:position(IoDevice, eof),
     {ok, 0} = file:position(IoDevice, bof),
