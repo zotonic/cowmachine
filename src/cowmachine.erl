@@ -1,10 +1,10 @@
 %% @author Marc Worrell <marc@worrell.nl>
-%% @copyright 2016-2019 Marc Worrell
+%% @copyright 2016-2022 Marc Worrell
 %%
 %% @doc Cowmachine: webmachine middleware for Cowboy/Zotonic
 %% @end
 
-%% Copyright 2016-2019 Marc Worrell
+%% Copyright 2016-2022 Marc Worrell
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -132,9 +132,10 @@ request_1(Controller, Req, Env, Options, Context) ->
             log(#{ at => ?AT, level => error, code => 500, text => "Unexpected exception",
                    class => Class, reason => Reason,
                    stack => Stacktrace}, Req),
-            {stop, cowboy_req:reply(500, Req)}
+            handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context)
     end,
 	ReqResult.
+
 
 % @todo add the error controller as an application env, if not defined then just terminate with the corresponding error code.
 
