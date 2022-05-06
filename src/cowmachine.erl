@@ -115,7 +115,7 @@ request_1(Controller, Req, Env, Options, Context) ->
             log(#{ at => ?AT, level => error, code => 500, text => "Unexpected exception",
                    class => Class, reason => Reason,
                    stack => Stacktrace}, Req),
-            handle_stop_request(500, Site, {throw, {undef, Stacktrace}}, Req, Env, State, Context)
+            handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context)
     end.
 
 % @todo add the error controller as an application env, if not defined then just terminate with the corresponding error code.
