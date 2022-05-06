@@ -1,0 +1,5 @@
+@author Marc Worrell <marc@worrell.nl>
+@title cowmachine
+@doc Webmachine for <a href="http://zotonic.com/">Zotonic</a> and <a href="https://ninenines.eu/">Cowboy</a>.
+@copyright Apache-2.0
+@reference This is an adaptation of <a href="https://github.com/webmachine/webmachine">webmachine</a> for the Cowboy web server.
