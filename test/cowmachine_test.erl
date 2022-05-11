@@ -7,9 +7,12 @@
     process/4
 ]).
 
-cowmachine_start_test() ->
-    {ok, _} = application:ensure_all_started(cowmachine),
+% Run test module
+% $ rebar3 eunit -v -m cowmachine_test
 
+cowmachine_start_test() ->
+	{ok, _} = application:ensure_all_started(cowmachine),
+    
     TestPid = self(), 
     spawn_link(fun() ->
                   {ok, _} = cowboy:start_clear(
@@ -22,9 +25,10 @@ cowmachine_start_test() ->
     receive started -> ok end,
 
     %% Do a request to the test server, and check the response
-    {ok, {{"HTTP/1.1", 200, "OK"}, _Headers, "Hello World"}} = httpc:request("http://127.0.0.1:1234/"),
-
-    ok.
+	?assertMatch(
+		{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, "Hello World"}},
+		httpc:request("http://127.0.0.1:1234/")
+	).
 
 %%
 %% Helpers

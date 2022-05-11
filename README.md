@@ -1,5 +1,6 @@
 ![Test](https://github.com/zotonic/cowmachine/workflows/Test/badge.svg)
 [![Hex version](https://img.shields.io/hexpm/v/cowmachine.svg "Hex version")](https://hex.pm/packages/cowmachine)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?logo=apache&logoColor=red)](https://www.apache.org/licenses/LICENSE-2.0)
 
 # Cowmachine
 
@@ -99,3 +100,16 @@ The controller is an Erlang module implementing callback functions, only functio
 
 For the controller callbacks and more documentation, check the [wiki pages](https://github.com/zotonic/cowmachine/wiki).
 
+## Documentation generation
+
+### Edoc
+
+#### Generate public API
+`rebar3 edoc`
+
+#### Generate private API
+`rebar3 as edoc_private edoc`
+
+### ExDoc
+
+`rebar3 ex_doc --logo doc/img/logo.png --output edoc`

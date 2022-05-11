@@ -360,7 +360,8 @@ do_choose(Default, DefaultOkay, AnyOkay, Choices, [{Acc,_Prio}|AccRest]) ->
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 %%
 
-%% @doc Parse an `application/x-www-form-urlencoded' string.
+%% @doc Parse an `application/x-www-form-urlencoded' string.<br/>
+%% See also <a href="https://www.w3.org/TR/html401/interact/forms.html#didx-applicationx-www-form-urlencoded">specification</a>.
 
 -spec parse_qs(String) -> Result when
 	String :: binary(),
@@ -424,6 +425,7 @@ parse_qs_value(_Rest, _Acc, _Name, _Value) ->
     throw(invalid_percent_encoding).
 
 %% @throws invalid_percent_encoding
+
 -spec unhex(Char) -> Result when
 	Char :: char(),
 	Result :: 1..15.

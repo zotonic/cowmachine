@@ -13,10 +13,4 @@ _build
 _checkout
 compile_commands.json
 rebar3
-edoc
-doc/*
-!doc/style.css
-!doc/overview.edoc
-!doc/img
-!doc/img/*
-!doc/img/logo.png
+doc

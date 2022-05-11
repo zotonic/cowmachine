@@ -14,7 +14,7 @@ test: $(REBAR)
 	$(REBAR) as test eunit
 
 dialyzer: $(REBAR)
-	$(REBAR) dialyzer
+	$(REBAR) as check dialyzer
 
 xref: $(REBAR)
 	$(REBAR) as test xref
@@ -25,11 +25,14 @@ clean:
 ##
 ## Doc targets
 ##
-docs: $(REBAR)
+edoc: $(REBAR)
 	$(REBAR) edoc
 
 edoc_private: $(REBAR)	
 	$(REBAR) as edoc_private edoc
+
+exdoc: $(REBAR)	
+	$(REBAR) ex_doc --logo doc/img/logo.png --output edoc
 
 $(REBAR):
 	$(ERL) -noshell -s inets -s ssl \
