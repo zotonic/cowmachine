@@ -1,17 +1,18 @@
--module(prop_cowmachine_simple).
+-module(prop_cowmachine_simple_service_available).
 -include_lib("proper/include/proper.hrl").
 
 -export([
-    execute/2,
-    process/4
+    execute/2
+    ,process/4
+	,service_available/1
 ]).
 
 %%%%%%%%%%%%%%%%%%
 %%% Properties %%%
 %%%%%%%%%%%%%%%%%%
 
-%% shell command for a test: rebar3 as test proper -p prop_cowmachine_start
-prop_cowmachine_start() ->
+%% shell command for a test: rebar3 as test proper -p prop_cowmachine_simple_service_available -n 1
+prop_cowmachine_simple_service_available() ->
  
 		?FORALL(_Type, boolean(),
 			begin
@@ -52,3 +53,5 @@ execute(Req, Env) ->
 %% Controller export
 process(<<"GET">>, _ContentType, _Accepted, Context) ->
     {<<"Hello World">>, Context}.
+
+service_available(Context) -> {true, Context}.

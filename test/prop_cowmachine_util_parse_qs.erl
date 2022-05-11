@@ -5,7 +5,7 @@
 %%% Properties %%%
 %%%%%%%%%%%%%%%%%%
 
-%% shell command for a test: rebar3 proper -p prop_parse_qs
+%% shell command for a test: rebar3 as test proper -p prop_parse_qs
 prop_parse_qs() ->
     ?FORALL(
 		{

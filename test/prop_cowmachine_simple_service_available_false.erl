@@ -1,27 +1,31 @@
--module(prop_cowmachine_simple).
+-module(prop_cowmachine_simple_service_available_false).
 -include_lib("proper/include/proper.hrl").
 
 -export([
-    execute/2,
-    process/4
+    execute/2
+    ,process/4
+	,service_available/1
 ]).
 
 %%%%%%%%%%%%%%%%%%
 %%% Properties %%%
 %%%%%%%%%%%%%%%%%%
 
-%% shell command for a test: rebar3 as test proper -p prop_cowmachine_start
-prop_cowmachine_start() ->
+%% shell command for a test: rebar3 as test proper -p prop_cowmachine_simple_service_available_false -n 1
+prop_cowmachine_simple_service_available_false() ->
  
 		?FORALL(_Type, boolean(),
 			begin
+				
 				{ok, _} = application:ensure_all_started(cowmachine),
 				TestPid = self(), 
+				
 				spawn_link(fun() ->
-                  {ok, _} = cowboy:start_clear(
-                              cowmachine_test_listener,
-                              [ inet, {port, 1234} ],
-                              cowboy_options()),
+				
+					{ok, _} = cowboy:start_clear(
+								  cowmachine_test_listener,
+								  [ inet, {port, 1234} ],
+								  cowboy_options()),
                   TestPid ! started
 				end),
 				
@@ -29,9 +33,10 @@ prop_cowmachine_start() ->
 				receive started -> ok end,
 				
 				%% Do a request to the test server, and check the response
-				{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, "Hello World"}} = httpc:request("http://127.0.0.1:1234/"),
+				
+				{ok, {{"HTTP/1.1",500,"Internal Server Error"}, _Headers, ""}} = httpc:request("http://127.0.0.1:1234/"),
 				%Result = httpc:request("http://127.0.0.1:1234/"),
-				%io:format("~p~n",[Result]),
+				%io:format("Result = ~p~n",[Result]),
 				
 				ok = cowboy:stop_listener(cowmachine_test_listener),
 				true
@@ -52,3 +57,5 @@ execute(Req, Env) ->
 %% Controller export
 process(<<"GET">>, _ContentType, _Accepted, Context) ->
     {<<"Hello World">>, Context}.
+
+service_available(Context) -> {false, Context}.

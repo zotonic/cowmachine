@@ -1,0 +1,16 @@
+{application, controller_functions,
+ [{description, "An OTP application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {controller_functions_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+	cowmachine
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.
