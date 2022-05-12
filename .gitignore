@@ -20,3 +20,4 @@ doc/*
 !doc/img
 !doc/img/*
 !doc/img/logo.png
+*.lock

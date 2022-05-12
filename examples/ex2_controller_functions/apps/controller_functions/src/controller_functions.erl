@@ -123,21 +123,39 @@ create_path(Context) ->
 	{<<"/">>, Context}.
 	
 content_types_provided(Context) -> 
-	%{[ {<<"text">>, <<"html">>, []} ], Context}.
-	{[cowmachine_req:resp_content_type(Context)], Context}.
+	%% Default Content Type here is  <<"binary/octet-stream">>
+	%DefaultRespContentType = cowmachine_req:resp_content_type(Context),
+	%io:format("Resp content type = ~p~n",[DefaultRespContentType]),
+	%{[DefaultRespContentType], Context}.
+	
+	%% Produce 406 Not Acceptable while GET
+	%{[], Context}.
+
+	TextPlainContentTypeContext = cowmachine_req:set_resp_content_type(<<"text/plain">>, Context),
+	CurrentRespContentType = cowmachine_req:resp_content_type(TextPlainContentTypeContext),
+	%io:format("Resp content type = ~p~n",[CurrentRespContentType]),
+	{[CurrentRespContentType], TextPlainContentTypeContext}.
 	
 content_types_accepted(Context) -> 
-	{[ {<<"text">>, <<"html">>, []} ], Context}.
+	{[], Context}.
 
 charsets_provided(Context) -> 
 	{[cowmachine_req:resp_chosen_charset(Context)], Context}.
 	
+	
 content_encodings_provided(Context) -> 
-	{[<<"identity">>, <<"gzip">>], Context}.
+	%{[<<"identity">>, <<"gzip">>], Context}.
+	%{[<<"gzip">>, <<"identity">>], Context}.
+	{[<<"identity">>], Context}.
+	%{[<<"gzip">>], Context}.
 	
 transfer_encodings_provided(Context) -> 
-	{[{<<"identity">>, fun(X) -> X end},
-		{<<"gzip">>, fun(X) -> zlib:gzip(X) end}], Context}.
+	{[
+	{<<"identity">>, fun(X) -> X end},
+		{<<"gzip">>, fun(X) -> 
+				io:format("X = ~p~n",[X]),
+				zlib:gzip(X) 
+			end}], Context}.
 		
 variances(Context) -> 
 	{[], Context}.

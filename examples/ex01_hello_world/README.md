@@ -13,6 +13,11 @@ Run
 
     $ escript _build/default/bin/launcher
 
+Build and run
+---
+
+    $ rebar3 escriptize && escript _build/default/bin/launcher
+	
 ## HTTP/1.1 example output
 
 ```

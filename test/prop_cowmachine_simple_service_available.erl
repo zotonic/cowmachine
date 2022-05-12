@@ -5,6 +5,8 @@
     execute/2
     ,process/4
 	,service_available/1
+	,content_encodings_provided/1
+	,transfer_encodings_provided/1
 ]).
 
 %%%%%%%%%%%%%%%%%%
@@ -55,3 +57,18 @@ process(<<"GET">>, _ContentType, _Accepted, Context) ->
     {<<"Hello World">>, Context}.
 
 service_available(Context) -> {true, Context}.
+
+content_encodings_provided(Context) -> 
+	%{[<<"identity">>, <<"gzip">>], Context}.
+	%{[<<"gzip">>, <<"identity">>], Context}.
+	%{[<<"identity">>], Context}.
+	{[<<"gzip">>], Context}.
+	
+transfer_encodings_provided(Context) -> 
+	%io:format("Context = ~p~n",[Context]),
+	{[
+	{<<"identity">>, fun(X) -> X end},
+	{<<"gzip">>, fun(X) -> 
+				io:format("X = ~p~n",[X]),
+				zlib:gzip(X) 
+			end}], Context}.

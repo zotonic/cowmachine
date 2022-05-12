@@ -711,14 +711,14 @@ resp_content_encoding(Context) ->
 -spec encode_content(Content, Context) -> Result when
 	Content :: iodata(),
 	Context :: context(),
-	Result :: iolist().
+	Result :: iodata().
 encode_content(Content, Context) ->
     encode_content_1(resp_content_encoding(Context), Content).
 
 -spec encode_content_1(Enc, Content) -> Result when
 	Enc :: binary(),
 	Content :: iodata(),
-	Result :: iolist().
+	Result :: iodata().
 encode_content_1(<<"gzip">>, Content) -> zlib:gzip(Content);
 encode_content_1(<<"identity">>, Content) -> Content.
 
