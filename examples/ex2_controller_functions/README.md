@@ -30,9 +30,10 @@ Build and run
 $ curl -i http://localhost:1234
 HTTP/1.1 200 OK
 content-length: 11
-content-type: text/html;charset=utf-8
-date: Wed, 11 May 2022 18:03:53 GMT
+content-type: binary/octet-stream
+date: Wed, 11 May 2022 20:24:42 GMT
 server: CowMachine/1.8.3
+vary: accept-encoding
 
 Hello World
 ```
