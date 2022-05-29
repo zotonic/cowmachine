@@ -159,4 +159,4 @@ Or enter address string `http://localhost:1234` in your browser and get a result
 
 ## Stop web server
 
-Enter `exit.` and press `Enter`
+Type in `exit.` command and press `Enter`.

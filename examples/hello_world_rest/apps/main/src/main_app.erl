@@ -36,23 +36,24 @@ stop(_State) ->
 %% internal functions
 
 %% Use this module as middleware, and controller
-cowboy_options(_Dispatch) ->
+cowboy_options(Dispatch) ->
 
-	TypeOfCallingCowmachine = rand:uniform(2),
+	TypeOfCallingCowmachine = rand:uniform(3),
 	%TypeOfCallingCowmachine = 1,
 	case TypeOfCallingCowmachine of
 		1 ->
 			#{ 
-				middlewares => [
-					% ... add your dispatcher middlware
-					mycowboy_middleware
-				]	
+				env => #{dispatch => Dispatch}	
 			};
 		2 ->
 			#{ 
-				%env => #{dispatch => Dispatch},
+				middlewares => [
+					cowboy_middleware
+				]	
+			};
+		3 ->
+			#{ 
 				middlewares => [ 
-					% ... add your dispatcher middlware
 					controller,
 					cowmachine 
 				] 

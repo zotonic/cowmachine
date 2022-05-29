@@ -43,3 +43,9 @@ cowmachine_parse_error_test() ->
 		invalid_percent_encoding,
 		cowmachine_util:parse_qs(<<"a%2=b">>)
 	).
+	
+cowmachine_normalize_content_type_test() ->
+	Expected = {<<"text">>, <<"plain">>, []},
+	Result = cowmachine_util:normalize_content_type(<<"text/plain">>),
+	%?debugFmt("Result = ~p~n",[Result]),
+	?assertEqual(Expected, Result).

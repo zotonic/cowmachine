@@ -44,9 +44,9 @@ execute(Req, Env) ->
 
 % Controller export
 process(<<"GET">>, _ContentType, _Accepted, Context) ->
-	{<<"Hello World">>, Context};
+	{<<"Get. Hello World">>, Context};
 process(<<"POST">>, _ContentType, _Accepted, Context) ->
-	{<<"Hello World">>, Context}.
+	{<<"POST. Hello World">>, Context}.
 	%{Context, Context}.
 	
 

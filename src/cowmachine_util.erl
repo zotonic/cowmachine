@@ -221,8 +221,8 @@ media_params_match(ReqList, ProvList) ->
             lists:member(Prov, ReqList)
         end,
         ProvList).
-
-% Given the value of an accept header, produce an ordered list based on the q-values.
+% @private
+% @doc Given the value of an accept header, produce an ordered list based on the q-values.
 % The first result being the highest-priority requested type.
 
 -spec accept_header_to_media_types(HeadVal) -> Result when

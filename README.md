@@ -112,4 +112,4 @@ For the controller callbacks and more documentation, check the [wiki pages](http
 
 ### ExDoc
 
-`rebar3 ex_doc --logo doc/img/logo.png --output edoc`
+`rebar3 ex_doc --logo doc/img/logo.png --output edoc -f html`

@@ -36,8 +36,8 @@ stop(_State) ->
 
 %% Use this module as middleware, and controller
 cowboy_options(Dispatch) ->
-    %TypeOfCallingCowmachine = rand:uniform(2),
-	TypeOfCallingCowmachine = 1+1,
+    %TypeOfCallingCowmachine = rand:uniform(3),
+	TypeOfCallingCowmachine = 1+1+1,
 	case TypeOfCallingCowmachine of
 		1 ->
 			#{ 
@@ -49,6 +49,14 @@ cowboy_options(Dispatch) ->
 					% ... add your dispatcher middlware
 					controller,
 					cowmachine 
+				] 
+			};
+		3 ->
+			#{ 
+				middlewares => [ 
+					% ... add your dispatcher middlware
+					controller2,
+					cowmachine
 				] 
 			}
 	end.

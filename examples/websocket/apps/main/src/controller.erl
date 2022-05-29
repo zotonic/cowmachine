@@ -20,6 +20,12 @@ process(<<"GET">>, _ContentType, _Accepted, Context) ->
 		<<"/">> ->
 			IndexHtml = file("priv", "index.html"),
 			cowmachine_req:set_resp_body({file, IndexHtml}, Context);
+		<<"/favicon.ico">> ->
+			Favicon = file("priv", "favicon.ico"),
+			FaviconContentType = cowmachine_util:normalize_content_type(<<"image/x-icon">>),
+			NewContent = cowmachine_req:set_resp_content_type(FaviconContentType,Context),	
+			NewContentRespHeader = cowmachine_req:set_resp_header(<<"content-type">>,<<"image/x-icon">>,NewContent),
+			cowmachine_req:set_resp_body({file, Favicon}, NewContentRespHeader);	
 		<<"/assets/", FileName/binary>>	->
 			FileNameList = binary_to_list(FileName),
 			File = file("static/assets", FileNameList),
@@ -36,7 +42,8 @@ process(<<"GET">>, _ContentType, _Accepted, Context) ->
 content_types_provided(Context) -> 
 	Html = cowmachine_util:normalize_content_type(<<"text/html">>),
 	Css = cowmachine_util:normalize_content_type(<<"text/css">>),
-	{[Html, Css], Context}.
+	Favicon = cowmachine_util:normalize_content_type(<<"image/x-icon">>),
+	{[Html, Css, Favicon], Context}.
 	
 %% internal functions	
 

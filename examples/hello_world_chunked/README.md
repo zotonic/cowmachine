@@ -66,4 +66,4 @@ sys     0m0,015s
 
 ## Stop web server
 
-Enter `exit.` and press `Enter`
+Type in `exit.` command and press `Enter`.

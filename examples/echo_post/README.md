@@ -125,4 +125,4 @@ server: CowMachine/1.9.0+build.115.ref71f4831
 
 ## Stop web server
 
-Enter `exit.` and press `Enter`.
+Type in `exit.` command and press `Enter`.

@@ -103,7 +103,7 @@ server: CowMachine/1.9.0+build.115.ref71f4831
 ```
 
 ```
-$ $ curl -i -d echo=saymyname http://localhost:1234
+$ curl -i -d echo=saymyname http://localhost:1234
 HTTP/1.1 405 Method Not Allowed
 allow: GET, HEAD
 content-length: 0
@@ -113,4 +113,4 @@ server: CowMachine/1.9.0+build.115.ref71f4831
 
 ## Stop web server
 
-Enter `exit.` and press `Enter`.
+Type in `exit.` command and press `Enter`.

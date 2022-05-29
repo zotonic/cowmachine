@@ -38,4 +38,4 @@ Find out `cowboy_options(Dispatch)` function and set `TypeOfCallingCowmachine` v
 
 ## Stop web server
 
-Enter `exit.` and press `Enter`.
+Type in `exit.` command and press `Enter`.

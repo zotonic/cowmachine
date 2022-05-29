@@ -20,7 +20,12 @@ start(_StartType, _StartArgs) ->
 				PrivDir = filename:join([CurrentDir, "priv"]),
 				filename:join([PrivDir, "index.html"])
 			end(),
-			%io:format("Path =~p~n",[IndexHtml]),
+			Favicon = fun() -> 
+				{ok, CurrentDir} = file:get_cwd(),
+				PrivDir = filename:join([CurrentDir, "priv"]),
+				filename:join([PrivDir, "favicon.ico"])
+			end(),
+			
 			RoutePath1 = fun()->
 				Path = "/",
 				Handler = cowboy_static, 
@@ -45,10 +50,19 @@ start(_StartType, _StartArgs) ->
 				RoutePath
 			end(),
 			
+			RoutePath4 = fun()->
+				Path = "/favicon.ico",
+				Handler = cowboy_static, 
+				InitialState = {file, Favicon},
+				RoutePath = {Path, Handler, InitialState},
+				RoutePath
+			end(),
+			
 			Route = {Host, [
 			RoutePath1,
 			RoutePath2,
-			RoutePath3
+			RoutePath3,
+			RoutePath4
 			]},
 			cowboy_router:compile([Route])
 		
@@ -71,8 +85,8 @@ stop(_State) ->
 %% Use this module as middleware, and controller
 cowboy_options(Dispatch) ->
 
-	TypeOfCallingCowmachine = rand:uniform(2),
-	%TypeOfCallingCowmachine = 1+1,
+	%TypeOfCallingCowmachine = rand:uniform(2),
+	TypeOfCallingCowmachine = 1,
 	case TypeOfCallingCowmachine of
 		1 ->
 			#{ 
@@ -80,7 +94,7 @@ cowboy_options(Dispatch) ->
 			};
 		2 ->
 			#{ 
-				env => #{dispatch => Dispatch},
+				% env => #{dispatch => Dispatch},
 				middlewares => [ 
 					% ... add your dispatcher middlware
 					controller,

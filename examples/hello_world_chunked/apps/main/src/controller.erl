@@ -13,5 +13,11 @@ execute(Req, Env) ->
 
 % Controller export
 process(<<"GET">>, _ContentType, _Accepted, Context) ->
-	%TODO: implement Cowmachine chunked responce
-	{true, Context}.
+    Req0 = cowmachine_req:req(Context),
+    Req = cowboy_req:stream_reply(200, Req0),
+	cowboy_req:stream_body("Hello\r\n", nofin, Req),
+	timer:sleep(1000),
+	cowboy_req:stream_body("World\r\n", nofin, Req),
+	timer:sleep(1000),
+	cowboy_req:stream_body("Chunked!\r\n", fin, Req),
+	{{halt, 200}, Context}.
