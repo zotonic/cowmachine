@@ -1,0 +1,16 @@
+{application, main,
+ [{description, "An OTP application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {main_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+	cowmachine
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.
