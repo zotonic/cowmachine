@@ -14,7 +14,7 @@ execute(Req, Env) ->
 	{ok, Req, Env#{ cowmachine_controller => ?MODULE }}.
 
 % Controller export
-process(<<"POST">>, _ContentType, _Accepted, Context) ->
+process(<<"POST">>, _AcceptedCT, _ProvidedCT, Context) ->
 	HasBody = cowmachine_req:has_req_body(Context),
 	maybe_echo(HasBody, Context);
 process(_, _, _, Context) ->

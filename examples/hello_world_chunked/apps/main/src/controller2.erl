@@ -12,12 +12,12 @@ execute(Req, Env) ->
     {ok, Req, Env#{ cowmachine_controller => ?MODULE } }.
 
 % Controller export
-process(<<"GET">>, _ContentType, _Accepted, Context) ->
+process(<<"GET">>, _AcceptedCT, _ProvidedCT, Context) ->
 	List = ["Hello\r\n", "World\r\n", "Chunked!\r\n"],
 	put("List", List),
 	StreamContext = cowmachine_req:set_resp_body(
 	{stream,
-			{get_item(),	
+			{get_item(),
 				fun Next() ->
 					timer:sleep(1000),
 					CurrentItem = get_item(),
@@ -27,27 +27,27 @@ process(<<"GET">>, _ContentType, _Accepted, Context) ->
 								Item,
 								done
 							};
-						_ -> 		
+						_ ->
 							{
 								CurrentItem,
 								Next
-							}	
+							}
 					end
-				end				
+				end
 			}
 	}, Context),
 	{{halt, 200}, StreamContext}.
 
-%% internal functions	
+%% internal functions
 
 get_item() ->
 	List = get("List"),
 	CurrentItem = case length(List) of
-		1 -> 
+		1 ->
 			Item = hd(List),
 			erase("List"),
 			{done,Item};
-		_ -> 
+		_ ->
 			[Item |Tail] = List,
 			put("List", Tail),
 			Item

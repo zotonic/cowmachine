@@ -13,7 +13,7 @@ execute(Req, Env) ->
 	{ok, Req, Env#{ cowmachine_controller => ?MODULE }}.
 
 % Controller export
-process(<<"GET">>, _ContentType, _Accepted, Context) ->
+process(<<"GET">>, _AcceptedCT, _ProvidedCT, Context) ->
 	
 	ReqQs = cowmachine_req:req_qs(Context),
 	%io:format("ReqQs = ~p~n",[ReqQs]),
@@ -26,7 +26,7 @@ process(<<"GET">>, _ContentType, _Accepted, Context) ->
 			Context400 = cowmachine_req:set_response_code(400, Context),
 			{<<"Missing echo parameter.">>, Context400}
 	end;
-process(_, _ContentType, _Accepted, Context) ->
+process(_, _AcceptedCT, _ProvidedCT, Context) ->
 	%% Method not allowed.
 	Context405 = cowmachine_req:set_response_code(405, Context),
 	{true, Context405}.

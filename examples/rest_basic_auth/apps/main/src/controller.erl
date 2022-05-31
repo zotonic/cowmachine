@@ -14,19 +14,18 @@ execute(Req, Env) ->
 	{ok, Req, Env#{ cowmachine_controller => ?MODULE }}.
 
 % Controller export
-process(<<"GET">>, _ContentType, _Accepted, Context) ->
+process(<<"GET">>, _AcceptedCT, _ProvidedCT, Context) ->
     User = cowmachine_req:get_resp_header(<<"user">>, Context),
-    case User of 
+    case User of
         undefined ->
             {"Your are not authorised", Context};
-        _ -> 
+        _ ->
             ResultString = "Hello, " ++ binary_to_list(User) ++ "!\n",
-            {ResultString, Context}            
+            {ResultString, Context}
     end.
 
 is_authorized(Context) ->
     Header = cowmachine_req:get_req_header(<<"authorization">>, Context),
-   
     case Header of
         <<"Basic ", User/binary>> ->
             DecodedAuthInfo = base64:decode_to_string(User),
@@ -39,6 +38,5 @@ is_authorized(Context) ->
 
 content_types_provided(Context) ->
     Text = cowmachine_util:normalize_content_type(<<"text/plain">>),
-    NewContext = cowmachine_req:set_resp_content_type(Text, Context),	
+    NewContext = cowmachine_req:set_resp_content_type(Text, Context),
 	{[Text], NewContext}.
- 

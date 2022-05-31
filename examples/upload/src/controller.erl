@@ -14,28 +14,25 @@
 execute(Req, Env) ->
 	{ok, Req, Env#{ cowmachine_controller => ?MODULE }}.
 
-process(<<"GET">>, _ContentType, _Accepted, Context) ->
+process(<<"GET">>, _AcceptedCT, _ProvidedCT, Context) ->
 	{true, Context};
-process(<<"POST">>, _ContentType, Accepted, Context) ->
-	case Accepted of
-		{<<"multipart">>,<<"form-data">>,[]} ->
-			{List, ReqDoneContext} = collect_multipart(Context, []),
-			HtmlContentType = <<"text/html">>,
-			HtmlMediaType = cowmachine_util:normalize_content_type(HtmlContentType),
-			Context1 = cowmachine_req:set_resp_content_type(HtmlMediaType, ReqDoneContext),	
-			Context2 = cowmachine_req:set_resp_header(<<"content-type">>,HtmlContentType, Context1),
-			Context3 = cowmachine_req:set_resp_chosen_charset(<<"utf-8">>,Context2),
-			FileNameListHtml = builFileNameListHtml(List),
-			% io:format("FileNameListHtml=~p~n",[FileNameListHtml]),
-			
-			RespBody = "<!DOCTYPE html><html><head><title>Uploaded Files</title><head><body><button onclick=\"history.back()\">Go Back</button><h2>Uploaded file list:</h2><ul>" 
-				++ FileNameListHtml 
-				++ "</ul></body></html>",
-			{RespBody, Context3};
-		_ ->
-			{true, Context}
-	end.	
-	
+process(<<"POST">>, {<<"multipart">>, <<"form-data">>, _}, _ProvidedCT, Context) ->
+	{List, ReqDoneContext} = collect_multipart(Context, []),
+	HtmlContentType = <<"text/html">>,
+	HtmlMediaType = cowmachine_util:normalize_content_type(HtmlContentType),
+	Context1 = cowmachine_req:set_resp_content_type(HtmlMediaType, ReqDoneContext),
+	Context2 = cowmachine_req:set_resp_header(<<"content-type">>,HtmlContentType, Context1),
+	Context3 = cowmachine_req:set_resp_chosen_charset(<<"utf-8">>,Context2),
+	FileNameListHtml = builFileNameListHtml(List),
+	% io:format("FileNameListHtml=~p~n",[FileNameListHtml]),
+
+	RespBody = "<!DOCTYPE html><html><head><title>Uploaded Files</title><head><body><button onclick=\"history.back()\">Go Back</button><h2>Uploaded file list:</h2><ul>" 
+		++ FileNameListHtml
+		++ "</ul></body></html>",
+	{RespBody, Context3};
+process(<<"POST">>, _AcceptedCT, _ProvidedCT, Context) ->
+	{true, Context}.
+
 % % Controller export
 
 allowed_methods(Context) -> 

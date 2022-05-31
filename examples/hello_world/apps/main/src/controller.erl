@@ -12,5 +12,5 @@ execute(Req, Env) ->
     {ok, Req, Env#{ cowmachine_controller => ?MODULE } }.
 
 %% Controller export
-process(<<"GET">>, _ContentType, _Accepted, Context) ->
+process(<<"GET">>, _AcceptedCT, _ProvidedCT, Context) ->
     {<<"Hello World">>, Context}.

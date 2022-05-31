@@ -13,8 +13,7 @@ execute(Req, Env) ->
 	{ok, Req, Env#{ cowmachine_controller => ?MODULE }}.
 
 % Controller export
-process(<<"GET">>, _ContentType, _Accepted, Context) ->
-	
+process(<<"GET">>,  _AcceptedCT, _ProvidedCT, Context) ->
 	Path = cowmachine_req:path(Context),
 	ResultContext = case Path of
 		<<"/">> ->
@@ -23,9 +22,9 @@ process(<<"GET">>, _ContentType, _Accepted, Context) ->
 		<<"/favicon.ico">> ->
 			Favicon = file("priv", "favicon.ico"),
 			FaviconContentType = cowmachine_util:normalize_content_type(<<"image/x-icon">>),
-			NewContent = cowmachine_req:set_resp_content_type(FaviconContentType,Context),	
+			NewContent = cowmachine_req:set_resp_content_type(FaviconContentType,Context),
 			NewContentRespHeader = cowmachine_req:set_resp_header(<<"content-type">>,<<"image/x-icon">>,NewContent),
-			cowmachine_req:set_resp_body({file, Favicon}, NewContentRespHeader);	
+			cowmachine_req:set_resp_body({file, Favicon}, NewContentRespHeader);
 		<<"/assets/", FileName/binary>>	->
 			FileNameList = binary_to_list(FileName),
 			File = file(filename:join([code:priv_dir(main), "static/assets"]), FileNameList),
@@ -39,32 +38,32 @@ process(<<"GET">>, _ContentType, _Accepted, Context) ->
 	end,
 	{true, ResultContext}.
 
-content_types_provided(Context) -> 
+content_types_provided(Context) ->
 	Html = cowmachine_util:normalize_content_type(<<"text/html">>),
 	Css = cowmachine_util:normalize_content_type(<<"text/css">>),
 	JS = cowmachine_util:normalize_content_type(<<"text/javascript">>),
 	Favicon = cowmachine_util:normalize_content_type(<<"image/x-icon">>),
 	{[Html, Css, JS, Favicon], Context}.
-	
-%% internal functions	
+
+%% internal functions
 
 file(DirName, FileName) ->
 	{ok, CurrentDir} = file:get_cwd(),
 	ParentDir = filename:join([CurrentDir, DirName]),
 	filename:join([ParentDir, FileName]).
-	
+
 set_content_types_provider(FileName,Context) ->
 	Extension = filename:extension(FileName),
 	case Extension of
 		".css" ->
-		  NewContent = cowmachine_req:set_resp_content_type(<<"text/css">>,Context),
-		  NewContentRespHeader = cowmachine_req:set_resp_header(<<"content-type">>,<<"text/css">>,NewContent),
-		  NewContentRespHeader;
+		  	NewContent = cowmachine_req:set_resp_content_type(<<"text/css">>,Context),
+		  	NewContentRespHeader = cowmachine_req:set_resp_header(<<"content-type">>,<<"text/css">>,NewContent),
+		  	NewContentRespHeader;
 		".js" ->
 			NewContent = cowmachine_req:set_resp_content_type(<<"application/javascript">>,Context),
 		    NewContentRespHeader = cowmachine_req:set_resp_header(<<"content-type">>,<<"application/javascript">>,NewContent),
 			NewContentRespHeader;
-		_ -> 
+		_ ->
 			NewContent = cowmachine_req:set_resp_content_type(<<"text/plain">>,Context),
 		    NewContent
 	end.

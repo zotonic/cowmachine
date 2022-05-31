@@ -22,7 +22,7 @@ content_encodings_provided(Context) ->
 	{[<<"identity">>, <<"gzip">>], Context}.
 
 % Controller export
-process(<<"GET">>, _ContentType, _Accepted, Context) ->
+process(<<"GET">>, _AcceptedCT, _ProvidedCT, Context) ->
 	% io:format("Context = ~p~n",[Context]),
 	BigBody =
 <<"A cowboy is an animal herder who tends cattle on ranches in North America,

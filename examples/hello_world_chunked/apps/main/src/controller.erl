@@ -12,7 +12,7 @@ execute(Req, Env) ->
     {ok, Req, Env#{ cowmachine_controller => ?MODULE } }.
 
 % Controller export
-process(<<"GET">>, _ContentType, _Accepted, Context) ->
+process(<<"GET">>, _AcceptedCT, _ProvidedCT, Context) ->
     Req0 = cowmachine_req:req(Context),
     Req = cowboy_req:stream_reply(200, Req0),
 	cowboy_req:stream_body("Hello\r\n", nofin, Req),

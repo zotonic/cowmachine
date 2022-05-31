@@ -13,25 +13,18 @@ execute(Req, Env) ->
 	{ok, Req, Env#{ cowmachine_controller => ?MODULE }}.
 
 % Controller export
-process(<<"GET">>, _ContentType, Accepted, Context) ->
-	%io:format("HTML. ContentType =~p~n, Accepted = ~p~n",[_ContentType,_Accepted]),
-	
-	RespBody = case Accepted of
-		{<<"text">>,<<"plain">>,[]} -> 
-			text();
-		{<<"text">>,<<"html">>,[]} ->
-			html();
-		{<<"application">>,<<"json">>,[]} ->
-			json()
-	end,		
-	{RespBody, Context}.
+process(<<"GET">>, _AcceptedCT, {<<"text">>, <<"html">>, _}, Context) ->
+	{text(), Context};
+process(<<"GET">>, _AcceptedCT, {<<"application">>, <<"json">>, _}, Context) ->
+	{html(), Context};
+process(<<"GET">>, _AcceptedCT, {<<"text">>, <<"plain">>, _}, Context) ->
+	{json(), Context}.
 
-content_types_provided(Context) -> 
+content_types_provided(Context) ->
 	Html = cowmachine_util:normalize_content_type(<<"text/html">>),
 	Text = cowmachine_util:normalize_content_type(<<"text/plain">>),
 	JSON = cowmachine_util:normalize_content_type(<<"application/json">>),
-	{[Html, Text, JSON], Context}.	
-
+	{[Html, Text, JSON], Context}.
 
 %% internal functions
 
