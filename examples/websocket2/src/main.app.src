@@ -1,0 +1,16 @@
+{application, main,
+ [{description, "Simple websocket example"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {main_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    cowmachine
+   ]},
+  {env,[]},
+  {modules, [main, main_sup, main_app, controller, ws_h]},
+
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.

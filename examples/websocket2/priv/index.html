@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8"/>
+	<title>Websocket client</title>
+	<link rel="stylesheet" href="assets/styles.css">
+	<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+	
+</head>
+
+<body>
+
+	<header>
+		<h1>Websocket client</h1>
+		<div id="status"></div>
+	</header>
+
+	<nav>
+		<div id="connecting">
+			<input type='text' id="server" value=""></input>
+			<button type="button" onclick="toggle_connection()">connection</button>
+		</div>
+
+		<div id="connected">
+			<input type='text' id="message" value=""></input>
+			<button type="button" onclick="sendTxt();">send</button>
+		</div>
+	</nav>
+
+	<main id="content">
+		<button id="clear" onclick="clearScreen()" >Clear text</button>
+		<div id="output"></div>
+	</main>
+
+	<script type="text/javascript" src="assets/script.js" defer></script>
+</body>
+</html> 
