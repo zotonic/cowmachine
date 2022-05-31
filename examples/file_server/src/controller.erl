@@ -37,6 +37,8 @@ content_types_provided(Context) ->
 
 %% internal functions
 
+%% Note: 
+%% Sanitize the path before concatenation the file name to the directory. 
 file(DirName, FileName) ->
 	{ok, CurrentDir} = file:get_cwd(),
 	ParentDir = filename:join([CurrentDir, DirName]),
