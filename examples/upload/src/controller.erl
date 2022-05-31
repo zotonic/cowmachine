@@ -16,8 +16,8 @@ execute(Req, Env) ->
 
 process(<<"GET">>, _ContentType, _Accepted, Context) ->
 	{true, Context};
-process(<<"POST">>, _ContentType, _Accepted, Context) ->
-	case cowmachine_req:resp_content_type(Context) of
+process(<<"POST">>, _ContentType, Accepted, Context) ->
+	case Accepted of
 		{<<"multipart">>,<<"form-data">>,[]} ->
 			{List, ReqDoneContext} = collect_multipart(Context, []),
 			HtmlContentType = <<"text/html">>,
