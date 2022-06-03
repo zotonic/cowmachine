@@ -1,5 +1,9 @@
-![Test](https://github.com/zotonic/cowmachine/workflows/Test/badge.svg)
+[![Hex.pm Downloads][hexpm downloads]][hexpm]
+[![Hex.pm Documentation][hexdocs documentation]][hexdocs]
+[![Erlang Versions][erlang version badge]][gh]
 [![Hex version](https://img.shields.io/hexpm/v/cowmachine.svg "Hex version")](https://hex.pm/packages/cowmachine)
+[![Build Status][gh badge]][gh]
+![Test](https://github.com/zotonic/cowmachine/workflows/Test/badge.svg)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?logo=apache&logoColor=red)](https://www.apache.org/licenses/LICENSE-2.0)
 
 # Cowmachine
