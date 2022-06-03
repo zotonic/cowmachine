@@ -1,10 +1,10 @@
+[![Hex.pm version][hexpm version]][hexpm]
 [![Hex.pm Downloads][hexpm downloads]][hexpm]
 [![Hex.pm Documentation][hexdocs documentation]][hexdocs]
 [![Erlang Versions][erlang version badge]][gh]
-[![Hex version](https://img.shields.io/hexpm/v/cowmachine.svg "Hex version")](https://hex.pm/packages/cowmachine)
 [![Build Status][gh badge]][gh]
-![Test](https://github.com/zotonic/cowmachine/workflows/Test/badge.svg)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?logo=apache&logoColor=red)](https://www.apache.org/licenses/LICENSE-2.0)
+[![License][license]](https://www.apache.org/licenses/LICENSE-2.0)
+
 
 # Cowmachine
 
@@ -117,3 +117,15 @@ For the controller callbacks and more documentation, check the [wiki pages](http
 ### ExDoc
 
 `rebar3 ex_doc --logo doc/img/logo.png --output edoc -f html`
+
+<!-- Badges -->
+[hexpm]: https://hex.pm/packages/cowmachine
+[hexpm version]: https://img.shields.io/hexpm/v/cowmachine.svg?style=flat-curcle "Hex version"
+[hexpm downloads]: https://img.shields.io/hexpm/dt/cowmachine.svg?style=flat-curcle
+[hexdocs documentation]: https://img.shields.io/badge/hex-docs-purple.svg?style=flat-curcle
+[hexdocs]: https://hexdocs.pm/cowmachine
+[gh]: https://github.com/vkatsuba/cowmachine/actions/workflows/test.yaml
+[gh badge]: https://img.shields.io/github/workflow/status/zotonic/cowmachine/Test?style=flat-curcle
+[erlang version badge]: https://img.shields.io/badge/erlang-22.X%20to%2024.X-blue.svg?style=flat-curcle
+[license]: https://img.shields.io/badge/License-Apache_2.0-blue.svg?logo=apache&logoColor=red "Apache 2.0"
+
