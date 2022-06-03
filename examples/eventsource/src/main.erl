@@ -9,6 +9,10 @@
         code_change/3]). % gen_server callbacks
 -define(SERVER, ?MODULE). % macro just defines this module as server
 
+%%% convenience method for startup
+start_link() ->
+        gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
 %%% gen_server callbacks
 init([]) ->
 	ServerPid = startServer(),
