@@ -1,8 +1,8 @@
+[![Build Status][gh badge]][gh]
 [![Hex.pm version][hexpm version]][hexpm]
 [![Hex.pm Downloads][hexpm downloads]][hexpm]
 [![Hex.pm Documentation][hexdocs documentation]][hexdocs]
 [![Erlang Versions][erlang version badge]][gh]
-[![Build Status][gh badge]][gh]
 [![License][license]](https://www.apache.org/licenses/LICENSE-2.0)
 
 
@@ -124,8 +124,8 @@ For the controller callbacks and more documentation, check the [wiki pages](http
 [hexpm downloads]: https://img.shields.io/hexpm/dt/cowmachine.svg?style=flat-curcle
 [hexdocs documentation]: https://img.shields.io/badge/hex-docs-purple.svg?style=flat-curcle
 [hexdocs]: https://hexdocs.pm/cowmachine
-[gh]: https://github.com/vkatsuba/cowmachine/actions/workflows/test.yaml
+[gh]: https://github.com/zotonic/cowmachine/actions/workflows/test.yaml
 [gh badge]: https://img.shields.io/github/workflow/status/zotonic/cowmachine/Test?style=flat-curcle
-[erlang version badge]: https://img.shields.io/badge/erlang-22.X%20to%2024.X-blue.svg?style=flat-curcle
+[erlang version badge]: https://img.shields.io/badge/Supported%20Erlang%2FOTP-22.0%20to%2024.0-blue.svg?style=flat-curcle
 [license]: https://img.shields.io/badge/License-Apache_2.0-blue.svg?logo=apache&logoColor=red "Apache 2.0"
 
