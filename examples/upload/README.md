@@ -19,7 +19,7 @@ The uploaded file will be send to the server.
 	
 ## Build and run
 
-`rebar3 compile && rebar3 shell`nt
+`rebar3 compile && rebar3 shell`
 
 Point your browser to http://localhost:1234
 
