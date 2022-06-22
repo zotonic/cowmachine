@@ -295,7 +295,7 @@ response_headers(Context) ->
 -spec send_stream_body(FunContext, Context) -> Result when	
 	FunContext :: {InitialData, InitialFun} | InitialFun,
 	InitialData :: binary() | {file, Filename} | {file, Size, Filename} | done | WriterFun, 
-	Filename :: filelib:filename_all(),
+	Filename :: file:filename_all(),
 	WriterFun :: function(),
 	Size :: non_neg_integer(),
 	InitialFun :: function(),
