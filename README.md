@@ -54,6 +54,12 @@ execute(Req, Env) ->
     RequestContext = cowmachine_req:init_context(Req, EnvController, #{}),
     % Set options for the cowmachine
     Options = #{
+        on_request =>
+            fun(Ctx) ->
+                % Perform anything after initialization of your request
+                % Examples are checking special cookies, changing headers, etc.
+                Ctx
+            end,
         on_welformed =>
             fun(Ctx) ->
                 % Perform anything after well-formedness check of your request
