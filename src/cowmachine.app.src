@@ -12,7 +12,6 @@
   {env, [
         {use_sendfile, erlang}
   ]},
-  {maintainers, ["Zotonic Team"]},
   {licenses, ["Apache-2.0"]},
   {links, [{"GitHub", "https://github.com/zotonic/cowmachine"}]}
  ]}.
