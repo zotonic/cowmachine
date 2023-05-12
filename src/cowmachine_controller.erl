@@ -137,20 +137,28 @@ default(_, _Context) ->
 	ContentType :: cow_http_hd:media_type(),
 	Result :: boolean().
 is_text({<<"text">>, _, _}) -> true;
+is_text({<<"application">>, <<"json">>, _}) -> true;
+is_text({<<"application">>, <<"ld+json">>, _}) -> true;
 is_text({<<"application">>, <<"x-javascript">>, _}) -> true;
 is_text({<<"application">>, <<"javascript">>, _}) -> true;
+is_text({<<"application">>, <<"xhtml">>, _}) -> true;
 is_text({<<"application">>, <<"xhtml+xml">>, _}) -> true;
 is_text({<<"application">>, <<"xml">>, _}) -> true;
-is_text(_Mime) -> false.
+is_text({<<"application">>, Sub, _}) ->
+    case binary:split(Sub, <<"+">>) of
+        [_, <<"json">>] -> true;
+        [_, <<"xml">>] -> true;
+        _ -> false
+    end;
+is_text(_) ->
+    false.
 
-
-%% @TODO Re-add logging code
 
 %% @doc Export and run function `Fun'.
 
 -spec do(Fun, State, Context) -> Result when
 	Fun :: atom(),
-	State :: cmstate(), 
+	State :: cmstate(),
 	Context :: cowmachine_req:context(),
 	Result :: {ContentType, Context},
 	ContentType :: cow_http_hd:media_type().
@@ -168,8 +176,8 @@ do(Fun, #cmstate{ controller = Controller }, Context) when is_atom(Fun) ->
 %% @doc Export and process `State' with `Context'.
 
 -spec do_process(ContentType, State, Context) -> Result when
-	ContentType :: cow_http_hd:media_type(), 
-	State :: cmstate(), 
+	ContentType :: cow_http_hd:media_type(),
+	State :: cmstate(),
 	Context :: cowmachine_req:context(),
 	Result :: {Res, Context},
 	Res :: boolean() | cowmachine_req:halt() | {error, any(), any()} | {error, any()} |
