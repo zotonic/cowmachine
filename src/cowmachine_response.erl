@@ -356,7 +356,7 @@ send_device_body(Context, Length, IO) ->
 -spec send_file_body(Context, Length, File, FinNoFin) -> Result when
 	Context :: cowmachine_req:context(),
 	Length :: non_neg_integer(), 
-	File :: Filename | file:iodata(),
+	File :: Filename | iodata(),
 	Filename :: file:name_all(),
 	FinNoFin :: fin | nofin,
 	Result :: cowmachine_req:context().

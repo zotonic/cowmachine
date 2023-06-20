@@ -82,10 +82,12 @@ is_cacheable(generate_etag) -> true;
 is_cacheable(_) -> false.
 
 -spec controller_call_process(ContentType, State, Context) -> Result when
-	ContentType :: cow_http_hd:media_type(), 
-	State :: cmstate(), 
+	ContentType :: cow_http_hd:media_type(),
+	State :: cmstate(),
 	Context :: cowmachine_req:context(),
-	Result :: {boolean() | ContentType, State, Context}.
+	Result :: {Res, State, Context},
+    Res :: boolean() | cowmachine_req:halt() | {error, any(), any()} | {error, any()} |
+            cowmachine_req:resp_body().
 controller_call_process(ContentType, State, Context) ->
     {T, Context1} = cowmachine_controller:do_process(ContentType, State, Context),
     {T, State, Context1}.
@@ -785,9 +787,9 @@ process_helper(ContentTypeAccepted, State, Context) ->
         {halt, _} -> Result;
         {error, _, _} -> Result;
         {error, _} -> Result;
-        true when is_boolean(Res) -> Result;
-        false when is_boolean(Res)  -> Result;
-        RespBody ->
+        true -> Result;
+        false -> Result;
+        RespBody when is_binary(RespBody); is_list(RespBody) ->
             C3 = cowmachine_req:set_resp_body(RespBody, C2),
             {body, S2, C3}
     end.
