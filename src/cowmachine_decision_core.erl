@@ -137,11 +137,18 @@ respond(Code, State, Context) ->
                                     ExpCtx0)
             end,
             {StateExp, ExpCtx};
-        % Let the error controller handle 4xx and 5xx errors
-        E when E =:= 401; E =:= 403; E =:= 404; E=:= 410;
-               (E >= 500 andalso E =< 599) ->
-            controller_call(finish_request, State, Context),
-            throw({stop_request, Code});
+        E when E =:= 401; E =:= 403; E =:= 404; E=:= 410; (E >= 500 andalso E =< 599) ->
+            % Http errors - maybe handled by error controller
+            HasRespContentType = cowmachine_req:get_resp_header(<<"content-type">>, Context) =/= undefined,
+            HasBody = cowmachine_req:resp_body(Context) =/= undefined,
+            if
+                HasBody andalso HasRespContentType ->
+                    {State, Context};
+                true ->
+                    % Let the error controller handle 4xx and 5xx errors without body
+                    controller_call(finish_request, State, Context),
+                    throw({stop_request, Code})
+            end;
         _ ->
             {State, Context}
     end,
