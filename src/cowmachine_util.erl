@@ -239,7 +239,7 @@ accept_header_to_media_types(HeadVal) ->
 
 -spec normalize_provided(Provided) -> Result when
 	Provided :: [cowmachine_req:media_type()],
-	Result :: cow_http_hd:media_type().
+	Result :: [cow_http_hd:media_type()].
 normalize_provided(Provided) ->
     [ normalize_content_type(X) || X <- Provided ].
 

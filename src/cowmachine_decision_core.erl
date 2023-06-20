@@ -82,10 +82,12 @@ is_cacheable(generate_etag) -> true;
 is_cacheable(_) -> false.
 
 -spec controller_call_process(ContentType, State, Context) -> Result when
-	ContentType :: cow_http_hd:media_type(), 
-	State :: cmstate(), 
+	ContentType :: cow_http_hd:media_type(),
+	State :: cmstate(),
 	Context :: cowmachine_req:context(),
-	Result :: {boolean() | ContentType, State, Context}.
+	Result :: {Res, State, Context},
+    Res :: boolean() | cowmachine_req:halt() | {error, any(), any()} | {error, any()} |
+            cowmachine_req:resp_body().
 controller_call_process(ContentType, State, Context) ->
     {T, Context1} = cowmachine_controller:do_process(ContentType, State, Context),
     {T, State, Context1}.
@@ -137,11 +139,18 @@ respond(Code, State, Context) ->
                                     ExpCtx0)
             end,
             {StateExp, ExpCtx};
-        % Let the error controller handle 4xx and 5xx errors
-        E when E =:= 401; E =:= 403; E =:= 404; E=:= 410;
-               (E >= 500 andalso E =< 599) ->
-            controller_call(finish_request, State, Context),
-            throw({stop_request, Code});
+        E when E =:= 401; E =:= 403; E =:= 404; E=:= 410; (E >= 500 andalso E =< 599) ->
+            % Http errors - maybe handled by error controller
+            HasRespContentType = cowmachine_req:get_resp_header(<<"content-type">>, Context) =/= undefined,
+            HasBody = cowmachine_req:resp_body(Context) =/= undefined,
+            if
+                HasBody andalso HasRespContentType ->
+                    {State, Context};
+                true ->
+                    % Let the error controller handle 4xx and 5xx errors without body
+                    controller_call(finish_request, State, Context),
+                    throw({stop_request, Code})
+            end;
         _ ->
             {State, Context}
     end,
@@ -778,9 +787,9 @@ process_helper(ContentTypeAccepted, State, Context) ->
         {halt, _} -> Result;
         {error, _, _} -> Result;
         {error, _} -> Result;
-        true when is_boolean(Res) -> Result;
-        false when is_boolean(Res)  -> Result;
-        RespBody ->
+        true -> Result;
+        false -> Result;
+        RespBody when is_binary(RespBody); is_list(RespBody) ->
             C3 = cowmachine_req:set_resp_body(RespBody, C2),
             {body, S2, C3}
     end.
