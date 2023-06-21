@@ -789,7 +789,7 @@ process_helper(ContentTypeAccepted, State, Context) ->
         {error, _} -> Result;
         true -> Result;
         false -> Result;
-        RespBody when is_binary(RespBody); is_list(RespBody) ->
+        RespBody ->
             C3 = cowmachine_req:set_resp_body(RespBody, C2),
             {body, S2, C3}
     end.
