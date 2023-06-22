@@ -1,4 +1,5 @@
-[![Test](https://github.com/zotonic/cowmachine/actions/workflows/test.yml/badge.svg)](https://github.com/zotonic/cowmachine/actions/workflows/test.yml)[![Hex.pm version][hexpm version]][hexpm]
+[![Test](https://github.com/zotonic/cowmachine/actions/workflows/test.yml/badge.svg)](https://github.com/zotonic/cowmachine/actions/workflows/test.yml)
+[![Hex.pm version][hexpm version]][hexpm]
 [![Hex.pm Downloads][hexpm downloads]][hexpm]
 [![Hex.pm Documentation][hexdocs documentation]][hexdocs]
 [![Erlang Versions][erlang version badge]][gh]
