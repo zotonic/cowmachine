@@ -1,10 +1,10 @@
 %% @author Marc Worrell <marc@worrell.nl>
-%% @copyright 2017-2019 Marc Worrell
+%% @copyright 2017-2023 Marc Worrell
 %%
 %% @doc Accept-Language handling.
 %% @end
 
-%% Copyright 2017-2019 Marc Worrell
+%% Copyright 2017-2023 Marc Worrell
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -23,34 +23,47 @@
 -author("Marc Worrell <marc@worrell.nl").
 
 -export([
+    parse_header/1,
     accept_header/2,
     accept_list/2
     ]).
 
--spec accept_header(AvailableLangs, AcceptHeader) -> Result when
-    AvailableLangs :: [{binary(),[ binary() ]}],
-	AcceptHeader :: cowmachine_req:context() | binary() | undefined,
-	Result :: {ok, binary()} | {error, nomatch | header}.
-accept_header(_AvailableLangs, undefined) ->
+-spec parse_header(AcceptHeader) -> Result when
+    AcceptHeader :: cowmachine_req:context() | binary() | undefined,
+    Result :: {ok, [binary()]} | {error, nomatch | header}.
+parse_header(undefined) ->
     {error, nomatch};
-accept_header(AvailableLangs, AcceptHeader) when is_binary(AcceptHeader) ->
+parse_header(AcceptHeader) when is_binary(AcceptHeader) ->
     case parse(AcceptHeader) of
-        error -> {error, header};
+        error ->
+            {error, header};
         List ->
             Sorted = sort_accept(List),
-            case [ Lang || {Lang,_Prio} <- Sorted, Lang =/= <<"*">> ] of
-                [] -> {error, nomatch};
-                AcceptList ->
-                    AcceptList1 = ensure_baselangs(AcceptList),
-                    accept_list(AvailableLangs, AcceptList1)
-            end
+            AcceptList = [ Lang || {Lang,_Prio} <- Sorted, Lang =/= <<"*">> ],
+            {ok, ensure_baselangs(AcceptList)}
     end;
-accept_header(AvailableLangs, Context) ->
-    accept_header(AvailableLangs, cowmachine_req:get_req_header(<<"accept-language">>, Context)).
+parse_header(Context) ->
+    parse_header(cowmachine_req:get_req_header(<<"accept-language">>, Context)).
+
+-spec accept_header(AvailableLangs, AcceptHeader) -> Result when
+    AvailableLangs :: [{binary(),[ binary() ]}],
+    AcceptHeader :: cowmachine_req:context() | binary() | undefined,
+    Result :: {ok, binary()} | {error, nomatch | header}.
+accept_header(_AvailableLangs, undefined) ->
+    {error, nomatch};
+accept_header(AvailableLangs, AcceptHeader) ->
+    case parse_header(AcceptHeader) of
+        {error, _} = Error ->
+            Error;
+        {ok, []} ->
+            {error, nomatch};
+        {ok, AcceptList} ->
+            accept_list(AvailableLangs, AcceptList)
+    end.
 
 -spec parse(AcceptHeader) -> Result when
-	AcceptHeader :: binary(),
-	Result :: [{binary(), cow_http_hd:qvalue()}] | error.
+    AcceptHeader :: binary(),
+    Result :: [{binary(), cow_http_hd:qvalue()}] | error.
 parse(AcceptHeader) ->
     try
         cow_http_hd:parse_accept_language(AcceptHeader)
@@ -59,10 +72,10 @@ parse(AcceptHeader) ->
     end.
 
 
--spec accept_list(AvailableLangs, AcceptableLangs) -> Result when	
-	AvailableLangs :: [{binary(), [ binary() ]}], 
-	AcceptableLangs :: [binary()],
-	Result :: {ok, binary()} | {error, nomatch}.
+-spec accept_list(AvailableLangs, AcceptableLangs) -> Result when   
+    AvailableLangs :: [{binary(), [ binary() ]}], 
+    AcceptableLangs :: [binary()],
+    Result :: {ok, binary()} | {error, nomatch}.
 accept_list(AvailableLangs, AcceptableLangs) ->
     case match_language(AvailableLangs, AcceptableLangs) of
         {ok, _} = OK -> OK;
@@ -76,15 +89,15 @@ accept_list(AvailableLangs, AcceptableLangs) ->
     end.
 
 -spec sort_accept(List) -> Result when
-	List :: list(),
-	Result :: list().
+    List :: list(),
+    Result :: list().
 sort_accept([]) -> [];
 sort_accept(List) ->
     lists:keysort(2, fix_order(List,1,[])).
 
 -spec ensure_baselangs(Langs) -> Result when
-	Langs :: list(),
-	Result :: list().
+    Langs :: [binary()],
+    Result :: [binary()].
 ensure_baselangs(Langs) ->
     lists:foldl(
         fun
@@ -105,22 +118,22 @@ ensure_baselangs(Langs) ->
 % will be chosen.
 
 -spec fix_order(LangList, N, Acc) -> Result when
-	LangList :: [LangItem],
-	LangItem :: {Lang, Prio},
-	Lang :: binary(), 
-	Prio :: integer(),
-	N :: non_neg_integer(),
-	Acc :: LangList,
-	Result :: Acc.
+    LangList :: [LangItem],
+    LangItem :: {Lang, Prio},
+    Lang :: binary(), 
+    Prio :: integer(),
+    N :: non_neg_integer(),
+    Acc :: LangList,
+    Result :: Acc.
 fix_order([], _N, Acc) ->
     Acc;
 fix_order([{Lang,Prio}|Langs], N, Acc) ->
     fix_order(Langs, N+1, [{Lang, Prio*100-N}|Acc]).
 
 -spec match_language(AvailableLangs, AcceptList) -> Result when
-	AvailableLangs :: [{binary(), [ binary() ]}], 
-	AcceptList :: [binary()],
-	Result :: {ok, binary()} | error.
+    AvailableLangs :: [{binary(), [ binary() ]}], 
+    AcceptList :: [binary()],
+    Result :: {ok, binary()} | error.
 match_language(AvailableLangs, AcceptList) ->
     case firstmap(fun(Lang) -> available_language(Lang, AvailableLangs) end, AcceptList) of
         {ok, _} = OK -> OK;
@@ -143,10 +156,10 @@ available_language(Lang, AvailableLangs) ->
     end.
 
 -spec fallback_language(Lang, [{AvailableLang,FallbackLangs}]) -> Result when
-	Lang :: binary(), 
-	AvailableLang :: binary(),
-	FallbackLangs :: [binary()],
-	Result :: error | {ok, AvailableLang}.
+    Lang :: binary(), 
+    AvailableLang :: binary(),
+    FallbackLangs :: [binary()],
+    Result :: error | {ok, AvailableLang}.
 fallback_language(_Lang, []) ->
     error;
 fallback_language(Lang, [{AvailableLang,FallbackLangs}|AvailableLangs]) ->
@@ -156,8 +169,8 @@ fallback_language(Lang, [{AvailableLang,FallbackLangs}|AvailableLangs]) ->
     end.
 
 -spec main_languages(Accept) -> Result when
-	Accept :: [binary()],
-	Result :: [binary()].
+    Accept :: [binary()],
+    Result :: [binary()].
 main_languages(Accept) ->
     Accept1 = lists:foldl(
         fun
