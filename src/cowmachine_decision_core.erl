@@ -112,7 +112,8 @@ d(DecisionID, State, Context) ->
 	Context :: cowmachine_req:context(),
 	%Result :: {State, Context}.
 	Result :: {term(), #cmstate{}, term()}.
-respond(Code, State, Context) ->
+respond(Code, State, Context0) ->
+    Context = maybe_drop_csp_headers(Code, Context0),
     {State1, Context1} = case Code of
         Ok when Ok >= 200, Ok =< 299 ->
             % Response all ok
@@ -171,6 +172,14 @@ respond(Code, State, Context) ->
 respond(Code, Headers, State, Context) ->
     ContextHs = cowmachine_req:set_resp_headers(Headers, Context),
     respond(Code, State, ContextHs).
+
+%% @doc On 304, remove the CSP header. The UA will use the cached version, with
+%% the CSP of the cached version. If we provide a new CSP then that one will
+%% supercede the cached one, which will give nonce problems.
+maybe_drop_csp_headers(304, Context) ->
+    cowmachine_req:remove_resp_header(<<"content-security-policy">>, Context);
+maybe_drop_csp_headers(_Code, Context) ->
+    Context.
 
 %% @throws {stop_request, Code, Reason}
 
