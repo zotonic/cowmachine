@@ -313,7 +313,7 @@ send_stream_body({{file, Filename}, Next}, Context) ->
     Length = filelib:file_size(Filename),
     send_stream_body({{file, Length, Filename}, Next}, Context);
 send_stream_body({{file, 0, _Filename}, Next}, Context) ->
-    send_stream_body(Context, {<<>>, Next});
+    send_stream_body({<<>>, Next}, Context);
 send_stream_body({{file, Size, Filename}, Next}, Context) ->
     Context1 = send_file_body(Context, Size, Filename, fin(Next)),
     next(Next, Context1);
