@@ -847,7 +847,7 @@ is_if_range_ok(<<$", _/binary>> = IfETag, ETag, _LM) ->
     lists:member(ETag, ETags);
 is_if_range_ok(Date, _ETag, LM) ->
     ErlDate = cowmachine_util:convert_request_date(Date),
-    ErlDate =/= undefined andalso ErlDate >= LM.
+    ErlDate =/= bad_date andalso ErlDate >= LM.
 
 
 choose_content_encoding(AccEncHdr, State, Context) ->
