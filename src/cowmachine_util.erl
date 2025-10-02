@@ -87,7 +87,7 @@ valid_location(Location) ->
 
 -spec convert_request_date(Date) -> Result when
 	Date :: binary(),
-	Result :: calendar:datetime().
+	Result :: calendar:datetime() | bad_date.
 convert_request_date(Date) ->
     try
         cow_date:parse_date(Date)
