@@ -195,9 +195,9 @@ send_response_bodyfun(Body, Code, Parts, Context) ->
     Req = cowmachine_req:req(Context),
     Req1 = cowboy_req:stream_reply(Code, Headers, Req),
     Context1 = cowmachine_req:set_req(Req1, Context),
-    Result = send_parts(Context1, Parts, iolist_to_binary(Body)),
-    set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Context),
-    Result.
+    Context2 = send_parts(Context1, Parts, iolist_to_binary(Body)),
+    set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Context2),
+    Context2.
 
 -spec start_response_stream(Code, Length, InitialStream, Parts, Context) -> Result when
 	Code :: integer(),
@@ -230,9 +230,9 @@ start_response_stream(Code, Length, InitialStream, Parts, Context) ->
         InitialFun ->
             stream_initial_fun(InitialFun, Parts1)
     end,
-    Result = send_stream_body(FirstHunk, Context2),
-    set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Result),
-    Result.
+    Context3 = send_stream_body(FirstHunk, Context2),
+    set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Context3),
+    Context3.
 
 -spec stream_initial_fun(Fun, Parts) -> Result when 
 	Fun :: function(), 
@@ -422,10 +422,7 @@ send_file_body_parts(Context, Parts, Filename) ->
 	Bin :: binary(),
 	Result :: cowmachine_req:context().
 send_parts(Context, {[{From,Length}], _Size, _Boundary, _ContentType}, Bin) ->
-    set_idle_timeout(infinity, Context),
-    Result = send_chunk(Context, binary:part(Bin,From,Length), fin),
-    set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Context),
-    Result;
+    send_chunk(Context, binary:part(Bin,From,Length), fin);
 send_parts(Context, {Parts, Size, Boundary, ContentType}, Bin) ->
     lists:foreach(
         fun({From,Length}) ->
