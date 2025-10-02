@@ -36,6 +36,7 @@
 ]).
 
 -define(FILE_CHUNK_LENGTH, 16#80000). % 512KB
+-define(DEFAULT_IDLE_TIMEOUT, 60000).
 
 %% @doc Returns server header.
 -spec server_header() -> Result when
@@ -116,8 +117,6 @@ send_response_code(Code, Parts, Context) ->
 	Parts :: cowmachine_req:parts(),
 	Context :: cowmachine_req:context(),
 	Result :: cowmachine_req:context().
-% send_response_bodyfun(undefined, Code, Parts, Context) ->
-%     send_response_bodyfun(<<>>, Code, Parts, Context);
 send_response_bodyfun({device, IO}, Code, Parts, Context) ->
     Length = iodevice_size(IO),
     send_response_bodyfun({device, Length, IO}, Code, Parts, Context);
@@ -191,11 +190,14 @@ send_response_bodyfun(Body, Code, all, Context) ->
     Req1 = cowboy_req:reply(Code, Headers, Body, Req),
     cowmachine_req:set_req(Req1, Context);
 send_response_bodyfun(Body, Code, Parts, Context) ->
+    set_idle_timeout(infinity, Context),
     Headers = response_headers(Context),
     Req = cowmachine_req:req(Context),
     Req1 = cowboy_req:stream_reply(Code, Headers, Req),
     Context1 = cowmachine_req:set_req(Req1, Context),
-    send_parts(Context1, Parts, iolist_to_binary(Body)).
+    Result = send_parts(Context1, Parts, iolist_to_binary(Body)),
+    set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Context),
+    Result.
 
 -spec start_response_stream(Code, Length, InitialStream, Parts, Context) -> Result when
 	Code :: integer(),
@@ -205,6 +207,7 @@ send_response_bodyfun(Body, Code, Parts, Context) ->
 	Context :: cowmachine_req:context(),
 	Result :: cowmachine_req:context().
 start_response_stream(Code, Length, InitialStream, Parts, Context) ->
+    set_idle_timeout(infinity, Context),
     {Code1, Context1, Parts1} = case is_streaming_range(InitialStream) of
         false when Parts =/= all ->
             % Drop range response header
@@ -227,7 +230,9 @@ start_response_stream(Code, Length, InitialStream, Parts, Context) ->
         InitialFun ->
             stream_initial_fun(InitialFun, Parts1)
     end,
-    send_stream_body(FirstHunk, Context2).
+    Result = send_stream_body(FirstHunk, Context2),
+    set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Result),
+    Result.
 
 -spec stream_initial_fun(Fun, Parts) -> Result when 
 	Fun :: function(), 
@@ -240,6 +245,17 @@ stream_initial_fun(F, _Parts) when is_function(F) ->
 stream_initial_fun(done, _Parts) ->
     done.
 
+%% @doc Set the idle timeout for the connection. This will reset the idle timeout
+%% timer for HTTP/1.x connections. During streaming we do not want a timeout.
+%% The default is 60 seconds.
+-spec set_idle_timeout(Timeout, Context) -> ok when
+    Timeout :: pos_integer() | infinity,
+    Context :: cowmachine_req:context().
+set_idle_timeout(Timeout, Context) ->
+    Req = cowmachine_req:req(Context),
+    cowboy_req:cast({set_options, #{
+        idle_timeout => Timeout
+    }}, Req).
 
 %% @doc Check if we support ranges on the data stream (body or function)
 -spec is_streaming_range(Stream) -> Result when
@@ -406,7 +422,10 @@ send_file_body_parts(Context, Parts, Filename) ->
 	Bin :: binary(),
 	Result :: cowmachine_req:context().
 send_parts(Context, {[{From,Length}], _Size, _Boundary, _ContentType}, Bin) ->
-    send_chunk(Context, binary:part(Bin,From,Length), fin);
+    set_idle_timeout(infinity, Context),
+    Result = send_chunk(Context, binary:part(Bin,From,Length), fin),
+    set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Context),
+    Result;
 send_parts(Context, {Parts, Size, Boundary, ContentType}, Bin) ->
     lists:foreach(
         fun({From,Length}) ->
