@@ -191,7 +191,7 @@ accept_negotiation_ok_test() ->
     {ok, {{"HTTP/1.1", 200, "OK"}, Headers, _}} =
         httpc:request(get, {url(Port), [{"accept", "text/html"}]}, [], []),
     {_, CT} = lists:keyfind("content-type", 1, Headers),
-    ?assertMatch("text/html" ++ _, CT),
+    ?assert(lists:prefix("text/html", CT)),
     cowboy:stop_listener(e2e_accept_ok).
 
 %% Accept header does not match content_types_provided  →  406 Not Acceptable
