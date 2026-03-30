@@ -384,7 +384,19 @@ service_available(Context)     -> {cfg(service_available,     true),            
 uri_too_long(Context)          -> {cfg(uri_too_long,          false),                    Context}.
 allowed_methods(Context)       -> {cfg(allowed_methods,       [<<"GET">>, <<"HEAD">>]),   Context}.
 malformed_request(Context)     -> {cfg(malformed_request,     false),                    Context}.
-is_authorized(Context)         -> {cfg(is_authorized,         true),                     Context}.
+is_authorized(Context) ->
+    case cfg(is_authorized, true) of
+        true ->
+            {true, Context};
+        Result ->
+            %% Pre-set a body + content-type so that respond/3 does NOT throw
+            %% {stop_request, 401} and hand off to the error controller.  Without
+            %% a body the error controller would run with a fresh Req that lacks
+            %% the www-authenticate header set by the decision core.
+            Ctx1 = cowmachine_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Context),
+            Ctx2 = cowmachine_req:set_resp_body(<<"Unauthorized">>, Ctx1),
+            {Result, Ctx2}
+    end.
 forbidden(Context)             -> {cfg(forbidden,             false),                    Context}.
 known_content_type(Context)    -> {cfg(known_content_type,    true),                     Context}.
 valid_entity_length(Context)   -> {cfg(valid_entity_length,   true),                     Context}.
