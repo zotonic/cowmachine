@@ -116,7 +116,7 @@ processing logic lives in `process/4`.
 
 | Webmachine | Cowmachine |
 |---|---|
-| `[{EncodingName, EncodingFun}]` — encoding function applied inline | `[EncodingName]` — a list of binary encoding names; the actual encoding is handled by the separate `transfer_encodings_provided/1` |
+| `[{EncodingName, EncodingFun}]` — encoding function applied inline | `[EncodingName]` — a list of binary content-coding names used for `Accept-Encoding` negotiation; cowmachine sets the `Content-Encoding` header based on the chosen encoding, but it does not transform the response body itself (that must be done by the controller or other middleware/handlers) |
 
 ## Full callback comparison table
 
