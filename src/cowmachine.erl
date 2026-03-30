@@ -105,35 +105,37 @@ request_1(Controller, Req, Env, Options, Context) ->
         end
     catch
         throw:{stop_request, 500, {Reason, Stacktrace}} when is_list(Stacktrace) ->
-            log(#{ at => ?AT, level => error, code => 500, text => "Stop request",
+            log(#{ at => ?AT, level => error, code => 500, text => <<"Stop request">>,
                    reason => Reason, stack => Stacktrace}, Req),
             handle_stop_request(500, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, 500, Reason} ->
-            log(#{ at => ?AT, level => error, code => 500, text => "Stop request", reason => Reason}, Req),
+            log(#{ at => ?AT, level => error, code => 500, text => <<"Stop request">>, reason => Reason}, Req),
             handle_stop_request(500, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, ResponseCode, Reason} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, {throw, Reason}, Req, Env, State, Context);
         throw:{stop_request, 500}:Stacktrace ->
-            log(#{ at => ?AT, level => error, code => 500, text => "Stop request",
+            log(#{ at => ?AT, level => error, code => 500, text => <<"Stop request">>,
                    stack => Stacktrace}, Req),
             handle_stop_request(500, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode) ->
             {stop, cowboy_req:reply(ResponseCode, Req)};
+        throw:{stop_request, ResponseCode, _Reason} when is_integer(ResponseCode) ->
+            {stop, cowboy_req:reply(ResponseCode, Req)};
         throw:invalid_percent_encoding ->
-            log(#{ at => ?AT, level => error, code => 400, text => "Illegal percent encoding" }, Req),
+            log(#{ at => ?AT, level => error, code => 400, text => <<"Illegal percent encoding">> }, Req),
             {stop, cowboy_req:reply(400, Req)};
         throw:invalid_qs_name ->
-            log(#{ at => ?AT, level => error, code => 400, text => "Illegal query argument name" }, Req),
+            log(#{ at => ?AT, level => error, code => 400, text => <<"Illegal query argument name">> }, Req),
             {stop, cowboy_req:reply(400, Req)};
         throw:Reason:Stacktrace ->
-            log(#{ at => ?AT, level => error, code => 500, text => "Unexpected throw",
+            log(#{ at => ?AT, level => error, code => 500, text => <<"Unexpected throw">>,
                    class => throw, reason => Reason,
                    stack => Stacktrace}, Req),
             handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context);
         Class:Reason:Stacktrace ->
-            log(#{ at => ?AT, level => error, code => 500, text => "Unexpected exception",
+            log(#{ at => ?AT, level => error, code => 500, text => <<"Unexpected exception">>,
                    class => Class, reason => Reason,
                    stack => Stacktrace}, Req),
             handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context)
