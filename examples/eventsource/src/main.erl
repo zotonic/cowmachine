@@ -96,21 +96,5 @@ end(),
 ListenerPid.
 
 %% Use this module as middleware, and controller
-cowboy_options(Dispatch) ->
-
-    TypeOfCallingCowmachine = rand:uniform(2),
-    % TypeOfCallingCowmachine = 1+1,
-    case TypeOfCallingCowmachine of
-        1 ->
-            #{ 
-                env => #{dispatch => Dispatch}
-            };
-        2 ->
-            #{ 
-                middlewares => [ 
-                    % ... add your dispatcher middlware
-                    controller,
-                    cowmachine 
-                ] 
-            }
-    end.
+cowboy_options(_Dispatch) ->
+    #{middlewares => [controller, cowmachine]}.

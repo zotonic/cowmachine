@@ -21,3 +21,4 @@ doc/*
 !doc/img/*
 !doc/img/logo.png
 .vscode
+rebar3.crashdump

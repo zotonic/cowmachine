@@ -17,7 +17,6 @@
 	known_methods/1,
 	allowed_methods/1,
 	validate_content_checksum/1,
-	delete_resource/1,
 	post_is_create/1,
 	create_path/1,
 	content_types_provided/1,
@@ -111,10 +110,6 @@ allowed_methods(Context) ->
 validate_content_checksum(Context) -> 
 	{not_validated,	Context}.
 	
-delete_resource(Context) -> 
-	%{true, Context}.
-	{false, Context}.
-	
 post_is_create(Context) -> 
 	%{true, Context}.
 	{false, Context}.
@@ -182,4 +177,4 @@ generate_etag(Context) ->
 	{undefined, Context}.
 	
 finish_request(Context) -> 
-	{undefined, Context}.
+	{true, Context}.
