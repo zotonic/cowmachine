@@ -376,7 +376,7 @@ parse_qs(String) ->
     parse_qs(String, ?DEFAULT_MAX_QS).
 
 %% @doc Parse an `application/x-www-form-urlencoded' string. With a
-%% maximum number of parsed name/value pairs. If more that the given
+%% maximum number of parsed name/value pairs. If more than the given
 %% amount is parsed then `too_many_qs_names' is thrown. If a value is
 %% missing then the value is assumed to be the empty string.
 %% See also <a href="https://www.w3.org/TR/html401/interact/forms.html#didx-applicationx-www-form-urlencoded">specification</a>.
