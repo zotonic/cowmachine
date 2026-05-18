@@ -367,7 +367,7 @@ do_choose(Default, DefaultOkay, AnyOkay, Choices, [{Acc,_Prio}|AccRest]) ->
 %% @doc Parse an `application/x-www-form-urlencoded' string. Returns a list
 %% of name/value pairs. If a value is missing then the value is assumed to
 %% be the empty string. Default the maximum number of name/value pairs returned
-%% is 10_000. More will throw `too_many_qs_names`.
+%% is 10_000. More will throw `too_many_qs_names'.
 %% See also <a href="https://www.w3.org/TR/html401/interact/forms.html#didx-applicationx-www-form-urlencoded">specification</a>.
 -spec parse_qs(String) -> Result when
     String :: binary(),
@@ -376,8 +376,8 @@ parse_qs(String) ->
     parse_qs(String, ?DEFAULT_MAX_QS).
 
 %% @doc Parse an `application/x-www-form-urlencoded' string. With a
-%% maximum number of parsed name/value pairs. If more that the given
-%% amount is parsed then `too_many_qs_names` is thrown. If a value is
+%% maximum number of parsed name/value pairs. If more than the given
+%% amount is parsed then `too_many_qs_names' is thrown. If a value is
 %% missing then the value is assumed to be the empty string.
 %% See also <a href="https://www.w3.org/TR/html401/interact/forms.html#didx-applicationx-www-form-urlencoded">specification</a>.
 -spec parse_qs(String, MaxNames) -> Result when
