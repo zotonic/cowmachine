@@ -366,7 +366,8 @@ do_choose(Default, DefaultOkay, AnyOkay, Choices, [{Acc,_Prio}|AccRest]) ->
 
 %% @doc Parse an `application/x-www-form-urlencoded' string. Returns a list
 %% of name/value pairs. If a value is missing then the value is assumed to
-%% be the empty string.
+%% be the empty string. Default the maximum number of name/value pairs returned
+%% is 10_000. More will throw `too_many_qs_names`.
 %% See also <a href="https://www.w3.org/TR/html401/interact/forms.html#didx-applicationx-www-form-urlencoded">specification</a>.
 -spec parse_qs(String) -> Result when
     String :: binary(),
@@ -375,11 +376,13 @@ parse_qs(String) ->
     parse_qs(String, ?DEFAULT_MAX_QS).
 
 %% @doc Parse an `application/x-www-form-urlencoded' string. With a
-%% maximum number of parsed name/value pairs.
+%% maximum number of parsed name/value pairs. If more that the given
+%% amount is parsed then `too_many_qs_names` is thrown. If a value is
+%% missing then the value is assumed to be the empty string.
 %% See also <a href="https://www.w3.org/TR/html401/interact/forms.html#didx-applicationx-www-form-urlencoded">specification</a>.
 -spec parse_qs(String, MaxNames) -> Result when
 	String :: binary(),
-    MaxNames :: pos_integer(),
+    MaxNames :: integer(),
     Result :: list({binary(),binary()}).
 parse_qs(<<>>, _MaxNames) ->
     [];
@@ -391,7 +394,7 @@ parse_qs(Qs, MaxNames) ->
 	String :: binary(),
 	Acc :: list(),
 	Name :: binary(),
-    MaxNames :: pos_integer(),
+    MaxNames :: integer(),
 	Result :: list({binary(),binary()}).
 parse_qs_name(<<>>, Acc, Name, N) ->
     case Name of
@@ -430,7 +433,7 @@ parse_qs_name(_Rest, _Acc, _Name, _N) ->
 	Acc :: list(),
 	Name :: binary(),
 	Value :: binary(),
-    N :: non_neg_integer(),
+    N :: integer(),
 	Result :: list({binary(),binary()}).
 parse_qs_value(<< $%, H, L, Rest/binary >>, Acc, Name, Value, N) ->
     C = (unhex(H) bsl 4 bor unhex(L)),
