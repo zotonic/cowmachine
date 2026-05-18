@@ -393,13 +393,14 @@ parse_qs(Qs, MaxNames) ->
 	Name :: binary(),
     MaxNames :: pos_integer(),
 	Result :: list({binary(),binary()}).
-parse_qs_name(_String, _Acc, _Name, N) when N =< 0 ->
-    throw(too_many_qs_names);
-parse_qs_name(<<>>, Acc, Name, _N) ->
+parse_qs_name(<<>>, Acc, Name, N) ->
     case Name of
         <<>> -> lists:reverse(Acc);
-        _ -> lists:reverse([{Name, <<>>}|Acc])
+        _ when N > 0 -> lists:reverse([{Name, <<>>}|Acc]);
+        _ -> throw(too_many_qs_names)
     end;
+parse_qs_name(_String, _Acc, _Name, N) when N =< 0 ->
+    throw(too_many_qs_names);
 parse_qs_name(<< $%, H, L, Rest/binary >>, Acc, Name, N) ->
     C = (unhex(H) bsl 4 bor unhex(L)),
     parse_qs_name(Rest, Acc, << Name/binary, C >>, N);
