@@ -1,26 +1,27 @@
 %% @author Justin Sheehy <justin@basho.com>
 %% @author Andy Gross <andy@basho.com>
-%% @copyright 2007-2008 Basho Technologies
-%%
+%% @copyright 2007-2008 Basho Technologies,
+%%            2013-2015 Loïc Hoguin <essen@ninenines.eu>,
+%%            2016-2026 Marc Worrell <marc@worrell.nl>
 %% @doc Utilities for parsing, quoting, and negotiation.
 %% @end
+
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%%    Licensed under the Apache License, Version 2.0 (the "License");
-%%    you may not use this file except in compliance with the License.
-%%    You may obtain a copy of the License at
+%%     http://www.apache.org/licenses/LICENSE-2.0
 %%
-%%        http://www.apache.org/licenses/LICENSE-2.0
-%%
-%%    Unless required by applicable law or agreed to in writing, software
-%%    distributed under the License is distributed on an "AS IS" BASIS,
-%%    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-%%    See the License for the specific language governing permissions and
-%%    limitations under the License.
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 
 -module(cowmachine_util).
 
 -export([is_valid_header/1, is_valid_header_value/1, valid_location/1]).
--export([parse_qs/1]).
+-export([parse_qs/1, parse_qs/2]).
 -export([convert_request_date/1]).
 -export([choose_media_type_provided/2]).
 -export([is_media_type_accepted/2]).
@@ -221,6 +222,7 @@ media_params_match(ReqList, ProvList) ->
             lists:member(Prov, ReqList)
         end,
         ProvList).
+
 % @private
 % @doc Given the value of an accept header, produce an ordered list based on the q-values.
 % The first result being the highest-priority requested type.
@@ -360,68 +362,87 @@ do_choose(Default, DefaultOkay, AnyOkay, Choices, [{Acc,_Prio}|AccRest]) ->
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 %%
 
-%% @doc Parse an `application/x-www-form-urlencoded' string.<br/>
+-define(DEFAULT_MAX_QS, 10000).
+
+%% @doc Parse an `application/x-www-form-urlencoded' string. Returns a list
+%% of name/value pairs. If a value is missing then the value is assumed to
+%% be the empty string.
 %% See also <a href="https://www.w3.org/TR/html401/interact/forms.html#didx-applicationx-www-form-urlencoded">specification</a>.
-
 -spec parse_qs(String) -> Result when
+    String :: binary(),
+    Result :: list({binary(),binary()}).
+parse_qs(String) ->
+    parse_qs(String, ?DEFAULT_MAX_QS).
+
+%% @doc Parse an `application/x-www-form-urlencoded' string. With a
+%% maximum number of parsed name/value pairs.
+%% See also <a href="https://www.w3.org/TR/html401/interact/forms.html#didx-applicationx-www-form-urlencoded">specification</a>.
+-spec parse_qs(String, MaxNames) -> Result when
 	String :: binary(),
-	Result :: list({binary(),binary()}).
-parse_qs(<<>>) ->
+    MaxNames :: pos_integer(),
+    Result :: list({binary(),binary()}).
+parse_qs(<<>>, _MaxNames) ->
     [];
-parse_qs(Qs) ->
-    parse_qs_name(Qs, [], <<>>).
+parse_qs(Qs, MaxNames) ->
+    parse_qs_name(Qs, [], <<>>, MaxNames).
 
-%% @throws invalid_percent_encoding
 
--spec parse_qs_name(String, Acc, Name) -> Result when
+-spec parse_qs_name(String, Acc, Name, MaxNames) -> Result when
 	String :: binary(),
 	Acc :: list(),
 	Name :: binary(),
+    MaxNames :: pos_integer(),
 	Result :: list({binary(),binary()}).
-parse_qs_name(<< $%, H, L, Rest/binary >>, Acc, Name) ->
-    C = (unhex(H) bsl 4 bor unhex(L)),
-    parse_qs_name(Rest, Acc, << Name/binary, C >>);
-parse_qs_name(<< $+, Rest/binary >>, Acc, Name) ->
-    parse_qs_name(Rest, Acc, << Name/binary, " " >>);
-parse_qs_name(<< $=, _/binary >>, _Acc, <<>>) ->
-    throw(invalid_qs_name);
-parse_qs_name(<< $=, Rest/binary >>, Acc, Name) ->
-    parse_qs_value(Rest, Acc, Name, <<>>);
-parse_qs_name(<< $&, Rest/binary >>, Acc, Name) ->
-    case Name of
-        <<>> -> parse_qs_name(Rest, Acc, <<>>);
-        _ -> parse_qs_name(Rest, [{Name, <<>>}|Acc], <<>>)
-    end;
-parse_qs_name(<< C, Rest/binary >>, Acc, Name) when C =/= $% ->
-    parse_qs_name(Rest, Acc, << Name/binary, C >>);
-parse_qs_name(<<>>, Acc, Name) ->
+parse_qs_name(_String, _Acc, _Name, N) when N =< 0 ->
+    throw(too_many_qs_names);
+parse_qs_name(<<>>, Acc, Name, _N) ->
     case Name of
         <<>> -> lists:reverse(Acc);
         _ -> lists:reverse([{Name, <<>>}|Acc])
     end;
-parse_qs_name(_Rest, _Acc, _Name) ->
+parse_qs_name(<< $%, H, L, Rest/binary >>, Acc, Name, N) ->
+    C = (unhex(H) bsl 4 bor unhex(L)),
+    parse_qs_name(Rest, Acc, << Name/binary, C >>, N);
+parse_qs_name(<< $+, Rest/binary >>, Acc, Name, N) ->
+    parse_qs_name(Rest, Acc, << Name/binary, " " >>, N);
+parse_qs_name(<< $=, _/binary >>, _Acc, <<>>, _N) ->
+    throw(invalid_qs_name);
+parse_qs_name(<< $=, Rest/binary >>, Acc, Name, N) ->
+    parse_qs_value(Rest, Acc, Name, <<>>, N);
+parse_qs_name(<< $&, Rest/binary >>, Acc, Name, N) ->
+    case Name of
+        <<>> -> parse_qs_name(Rest, Acc, <<>>, N);
+        _ -> parse_qs_name(Rest, [{Name, <<>>}|Acc], <<>>, N - 1)
+    end;
+parse_qs_name(<< C, Rest/binary >>, Acc, Name, N) when C =/= $% ->
+    parse_qs_name(Rest, Acc, << Name/binary, C >>, N);
+parse_qs_name(<<>>, Acc, Name, _N) ->
+    case Name of
+        <<>> -> lists:reverse(Acc);
+        _ -> lists:reverse([{Name, <<>>}|Acc])
+    end;
+parse_qs_name(_Rest, _Acc, _Name, _N) ->
     throw(invalid_percent_encoding).
 
-%% @throws invalid_percent_encoding
-
--spec parse_qs_value(String, Acc, Name, Value) -> Result when
+-spec parse_qs_value(String, Acc, Name, Value, N) -> Result when
 	String :: binary(),
 	Acc :: list(),
 	Name :: binary(),
 	Value :: binary(),
+    N :: non_neg_integer(),
 	Result :: list({binary(),binary()}).
-parse_qs_value(<< $%, H, L, Rest/binary >>, Acc, Name, Value) ->
+parse_qs_value(<< $%, H, L, Rest/binary >>, Acc, Name, Value, N) ->
     C = (unhex(H) bsl 4 bor unhex(L)),
-    parse_qs_value(Rest, Acc, Name, << Value/binary, C >>);
-parse_qs_value(<< $+, Rest/binary >>, Acc, Name, Value) ->
-    parse_qs_value(Rest, Acc, Name, << Value/binary, " " >>);
-parse_qs_value(<< $&, Rest/binary >>, Acc, Name, Value) ->
-    parse_qs_name(Rest, [{Name, Value}|Acc], <<>>);
-parse_qs_value(<< C, Rest/binary >>, Acc, Name, Value) when C =/= $% ->
-    parse_qs_value(Rest, Acc, Name, << Value/binary, C >>);
-parse_qs_value(<<>>, Acc, Name, Value) ->
+    parse_qs_value(Rest, Acc, Name, << Value/binary, C >>, N);
+parse_qs_value(<< $+, Rest/binary >>, Acc, Name, Value, N) ->
+    parse_qs_value(Rest, Acc, Name, << Value/binary, " " >>, N);
+parse_qs_value(<< $&, Rest/binary >>, Acc, Name, Value, N) ->
+    parse_qs_name(Rest, [{Name, Value}|Acc], <<>>, N - 1);
+parse_qs_value(<< C, Rest/binary >>, Acc, Name, Value, N) when C =/= $% ->
+    parse_qs_value(Rest, Acc, Name, << Value/binary, C >>, N);
+parse_qs_value(<<>>, Acc, Name, Value, _N) ->
     lists:reverse([{Name, Value}|Acc]);
-parse_qs_value(_Rest, _Acc, _Name, _Value) ->
+parse_qs_value(_Rest, _Acc, _Name, _Value, _N) ->
     throw(invalid_percent_encoding).
 
 %% @throws invalid_percent_encoding

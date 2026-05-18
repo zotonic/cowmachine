@@ -43,7 +43,17 @@ cowmachine_parse_error_test() ->
 		invalid_percent_encoding,
 		cowmachine_util:parse_qs(<<"a%2=b">>)
 	).
-	
+
+cowmachine_parse_count_test() ->
+	?assertEqual(
+		[ {<<"a">>, <<"1">>}, {<<"b">>, <<"2">>} ],
+		cowmachine_util:parse_qs(<<"a=1&b=2">>, 2)
+	),
+	?assertThrow(
+		too_many_qs_names,
+		cowmachine_util:parse_qs(<<"a=1&b=2&c=3">>, 2)
+	).
+
 cowmachine_normalize_content_type_test() ->
 	Expected = {<<"text">>, <<"plain">>, []},
 	Result = cowmachine_util:normalize_content_type(<<"text/plain">>),
