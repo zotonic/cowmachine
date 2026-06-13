@@ -13,11 +13,7 @@
 upgrade(Handler, Context) ->
     Req = cowmachine_req:req(Context),
     Env = cowmachine_req:env(Context),
-    Opts = #{
-        idle_timeout   => 120000, % 2m still accept slow clients, but also prevent slow client DoS
-        max_frame_size => 524288, % 512 KB 
-        compress       => true
-    },
+    Opts = cowmachine_config:ws_opts(),
 
     % Ensure the handler module is loaded. Cowboy uses erlang:function_exported/3 to
     % check if optional callbacks are available. When the handler module is not loaded

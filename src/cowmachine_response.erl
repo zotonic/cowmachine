@@ -37,18 +37,25 @@
 
 -define(FILE_CHUNK_LENGTH, 16#80000). % 512KB
 -define(DEFAULT_IDLE_TIMEOUT, 60000).
+-define(SERVER_NAME, <<"CowMachine">>).
 
 %% @doc Returns server header.
 -spec server_header() -> Result when
 	Result :: binary().
 server_header() ->
-    case application:get_env(cowmachine, server_header) of
-        {ok, Server} -> z_convert:to_binary(Server);
+    case cowmachine_config:env(server_header, undefined) of
         undefined ->
-            case application:get_key(cowmachine, vsn) of
-                {ok, Version} -> <<"CowMachine/", (z_convert:to_binary(Version))/binary>>;
-                undefined -> <<"CowMachine">>
-            end
+            default_server_header();
+        Server ->
+            z_convert:to_binary(Server)
+    end.
+
+default_server_header() ->
+    case cowmachine_config:env(vsn, undefined) of
+        undefined ->
+            ?SERVER_NAME;
+        Version ->
+            <<(?SERVER_NAME)/binary, "/", (z_convert:to_binary(Version))/binary>>
     end.
 
 %% @doc Send responce.
