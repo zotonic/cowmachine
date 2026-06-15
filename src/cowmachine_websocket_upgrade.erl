@@ -27,7 +27,7 @@ upgrade(Handler, Context) ->
 ws_opts(Context) ->
     case cowmachine_req:get_metadata(ws_opts, Context) of
         M when is_map(M) ->
-            maps:merge(ws_defaults, M);
+            maps:merge(ws_defaults(), M);
         _ ->
             ws_defaults()
     end.
