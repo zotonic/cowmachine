@@ -296,14 +296,14 @@ lower(C) -> C.
 	Peer :: inet:ip_address(),
 	Result :: boolean().
 is_trusted_proxy(Peer) ->
-    case application:get_env(cowmachine, proxy_allowlist) of
-        {ok, ip_whitelist} ->
+    case cowmachine_config:env(proxy_allowlist, undefined) of
+        undefined ->
+            is_trusted_proxy(local, Peer);
+        ip_whitelist ->
             % Map old config name
             is_trusted_proxy(ip_allowlist, Peer);
-        {ok, ProxyAllowlist} ->
-            is_trusted_proxy(ProxyAllowlist, Peer);
-        undefined ->
-            is_trusted_proxy(local, Peer)
+        ProxyAllowlist ->
+            is_trusted_proxy(ProxyAllowlist, Peer)
     end.
 
 -spec is_trusted_proxy(Marker, Peer) -> Result when
@@ -319,7 +319,7 @@ is_trusted_proxy(any, _Peer) ->
 is_trusted_proxy(local, Peer) ->
     z_ip_address:is_local(Peer);
 is_trusted_proxy(ip_allowlist, Peer) ->
-    case application:get_env(cowmachine, ip_allowlist) of
+    case cowmachine_config:env(ip_allowlist, undefined) of
         {ok, Allowlist} ->
             z_ip_address:ip_match(Peer, Allowlist);
         undefined ->
