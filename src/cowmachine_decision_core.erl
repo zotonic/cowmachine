@@ -459,7 +459,7 @@ decision(v3g11, State, Context) ->
 
 %% "If-Match: * exists"
 decision(v3h7, State, Context) ->
-    decision_test(cowmachine_req:get_req_header(<<"if-match">>, Context), "*", 412, v3i7, State, Context);
+    decision_test(cowmachine_req:get_req_header(<<"if-match">>, Context), <<"*">>, 412, v3i7, State, Context);
 
 %% "If-unmodified-since exists?"
 decision(v3h10, State, Context) ->
