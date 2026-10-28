@@ -191,7 +191,7 @@ parse_host(Host) ->
 	Host :: binary().
 parse_for(undefined, Req) ->
     {Peer, _Port} = cowboy_req:peer(Req),
-    {Peer, list_to_binary(inet_parse:ntoa(Peer)};
+    {Peer, list_to_binary(inet_parse:ntoa(Peer))};
 parse_for(<<$[, Rest/binary>>, _Req) ->
     IP6 = hd(binary:split(Rest, <<"]">>)),
     {ok, Adr} = inet_parse:address(binary_to_list(IP6)),
