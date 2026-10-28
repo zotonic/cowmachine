@@ -349,7 +349,7 @@ base_uri(Context) ->
         host(Context),
         case port(Context) of
             80 when Scheme =:= http -> [];
-            433 when Scheme =:= https -> [];
+            443 when Scheme =:= https -> [];
             Port -> [ $:, integer_to_binary(Port) ]
         end,
         $/

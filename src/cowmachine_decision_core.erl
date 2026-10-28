@@ -328,8 +328,8 @@ decision(v3b6_upgrade, State, Context) ->
                 Connection ->
                     case contains_token(<<"upgrade">>, Connection) of
                         true ->
-                            {Choosen, S1, C1} = choose_upgrade(UpgradeHdr, State, Context),
-                            case Choosen of
+                            {Chosen, S1, C1} = choose_upgrade(UpgradeHdr, State, Context),
+                            case Chosen of
                                 none ->
                                     decision(v3b6, S1, C1);
                                 {_Protocol, UpgradeFunc} ->
