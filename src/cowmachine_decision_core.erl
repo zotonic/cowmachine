@@ -438,7 +438,7 @@ decision(v3g7, State, Context) ->
     {Variances, S1, C1} = variances(State, Context),
     VarCtx = case Variances of
         [] -> C1;
-        _ -> cowmachine_req:set_resp_header(<<"vary">>, [Variances], C1)
+        _ -> cowmachine_req:set_resp_header(<<"vary">>, Variances, C1)
     end,
     decision_test(controller_call(resource_exists, S1, VarCtx), true, v3g8, v3h7);
 

@@ -320,10 +320,10 @@ is_trusted_proxy(local, Peer) ->
     z_ip_address:is_local(Peer);
 is_trusted_proxy(ip_allowlist, Peer) ->
     case cowmachine_config:env(ip_allowlist, undefined) of
-        {ok, Allowlist} ->
-            z_ip_address:ip_match(Peer, Allowlist);
         undefined ->
-            z_ip_address:is_local(Peer)
+            z_ip_address:is_local(Peer);
+        Allowlist ->
+            z_ip_address:ip_match(Peer, Allowlist)
     end;
 is_trusted_proxy(Allowlist, Peer) when is_list(Allowlist); is_binary(Allowlist) ->
     z_ip_address:ip_match(Peer, Allowlist).
