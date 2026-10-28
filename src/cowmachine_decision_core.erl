@@ -914,10 +914,10 @@ choose_upgrade(UpgradeHdr, State, Context) ->
 choose_upgrade1([], _) ->
     none;
 choose_upgrade1([Req|Requested], Provided) ->
-    case lists:keysearch(Req, 1, Provided) of
+    case lists:keyfind(Req, 1, Provided) of
         false ->
             choose_upgrade1(Requested, Provided);
-        {value, {_, Protocol, UpgradeFun}} ->
+        {_, Protocol, UpgradeFun} ->
             {Protocol, UpgradeFun}
     end.
 
