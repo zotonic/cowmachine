@@ -186,7 +186,7 @@ parse_host(Host) ->
 -spec parse_for(For, Req) -> Result when
 	For :: undefined | binary(),
 	Req :: cowboy_req:req(),
-	Result :: {Host, Adr},
+	Result :: {Adr, Host},
 	Host :: binary(),
 	Adr :: inet:ip_address().
 parse_for(undefined, Req) ->
