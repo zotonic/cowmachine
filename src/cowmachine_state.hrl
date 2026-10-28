@@ -17,7 +17,3 @@
     cache :: map(),
     options :: map()
 }. %% Data for cowmachine's decision core
-
-
-
--define(DBG(Msg), error_logger:info_msg("DEBUG: ~p:~p  ~p~n", [?MODULE, ?LINE, Msg])).
