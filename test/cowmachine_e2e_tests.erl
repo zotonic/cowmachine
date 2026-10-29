@@ -370,6 +370,49 @@ post_to_resource_test() ->
             post, {url(Port), [], "text/plain", "hello post"}, [], [])),
     cowboy:stop_listener(e2e_post).
 
+%% -- Failures in the request process ----------------------------------
+
+%% The controller throws too_many_qs_names, a client error  →  400
+throw_client_error_test() ->
+    {ok, _} = application:ensure_all_started(cowmachine),
+    set_opts(#{fail => {throw, too_many_qs_names}}),
+    Port = start_listener(e2e_throw_client_error),
+    ?assertMatch(
+        {ok, {{"HTTP/1.1", 400, _}, _, _}},
+        httpc:request(url(Port))),
+    cowboy:stop_listener(e2e_throw_client_error).
+
+%% The controller throws something unexpected  →  500
+throw_unexpected_test() ->
+    {ok, _} = application:ensure_all_started(cowmachine),
+    set_opts(#{fail => {throw, something_unexpected}}),
+    Port = start_listener(e2e_throw_unexpected),
+    ?assertMatch(
+        {ok, {{"HTTP/1.1", 500, _}, _, _}},
+        httpc:request(url(Port))),
+    cowboy:stop_listener(e2e_throw_unexpected).
+
+%% Cowboy exits with timeout if a request body is not received in time  →  408
+exit_timeout_test() ->
+    {ok, _} = application:ensure_all_started(cowmachine),
+    set_opts(#{fail => {exit, timeout}}),
+    Port = start_listener(e2e_exit_timeout),
+    ?assertMatch(
+        {ok, {{"HTTP/1.1", 408, _}, _, _}},
+        httpc:request(url(Port))),
+    cowboy:stop_listener(e2e_exit_timeout).
+
+%% Malformed Cookie header. Cowboy exits with {request_error, {header, _}, _}
+%% in cowmachine_req:init_env/2, before the controller is called  →  400
+malformed_cookie_test() ->
+    {ok, _} = application:ensure_all_started(cowmachine),
+    set_opts(#{}),
+    Port = start_listener(e2e_malformed_cookie),
+    ?assertMatch(
+        {ok, {{"HTTP/1.1", 400, _}, _, _}},
+        httpc:request(get, {url(Port), [{"cookie", "=x"}]}, [], [])),
+    cowboy:stop_listener(e2e_malformed_cookie).
+
 %%
 %% Controller implementation
 %%
@@ -384,6 +427,7 @@ execute(Req, Env) ->
 %% Unified request processor (replaces webmachine's delete_resource,
 %% process_post, and named content-type handler functions).
 process(<<"GET">>,    _AcceptedCT, _ProvidedCT, Context) ->
+    maybe_fail(),
     {cfg(response_body, <<"Hello World">>), Context};
 process(<<"HEAD">>,   _AcceptedCT, _ProvidedCT, Context) ->
     {cfg(response_body, <<"Hello World">>), Context};
@@ -437,6 +481,14 @@ set_opts(Opts) ->
 
 cfg(Key, Default) ->
     maps:get(Key, application:get_env(cowmachine, test_opts, #{}), Default).
+
+%% Let the controller fail with the configured {Class, Reason}, to test the
+%% handling of failures in the request process.
+maybe_fail() ->
+    case cfg(fail, undefined) of
+        undefined -> ok;
+        {Class, Reason} -> erlang:raise(Class, Reason, [])
+    end.
 
 url(Port) ->
     "http://127.0.0.1:" ++ integer_to_list(Port) ++ "/".
