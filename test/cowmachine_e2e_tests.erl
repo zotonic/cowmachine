@@ -26,6 +26,7 @@
     valid_entity_length/1,
     resource_exists/1,
     content_types_provided/1,
+    content_encodings_provided/1,
     generate_etag/1,
     last_modified/1,
     moved_permanently/1,
@@ -206,6 +207,22 @@ accept_negotiation_not_acceptable_test() ->
     cowboy:stop_listener(e2e_not_acceptable).
 
 %% -- resource_exists (v3g7) -------------------------------------------
+
+%% Check if the vary headers are set
+vary_header_test() ->
+    {ok, _} = application:ensure_all_started(cowmachine),
+    set_opts(#{
+        content_types_provided => [
+            {<<"text">>, <<"html">>, []},
+            {<<"application">>, <<"json">>, []}
+        ],
+        content_encodings_provided => [<<"identity">>, <<"gzip">>]
+    }),
+    Port = start_listener(e2e_vary),
+    {ok, {{"HTTP/1.1", 200, "OK"}, Headers, _}} = httpc:request(url(Port)),
+    {_, Vary} = lists:keyfind("vary", 1, Headers),
+    ?assertEqual("accept, accept-encoding", Vary),
+    cowboy:stop_listener(e2e_vary).
 
 %% resource_exists = false, not previously existed  →  404 Not Found
 resource_not_found_test() ->
@@ -402,6 +419,7 @@ known_content_type(Context)    -> {cfg(known_content_type,    true),            
 valid_entity_length(Context)   -> {cfg(valid_entity_length,   true),                     Context}.
 resource_exists(Context)       -> {cfg(resource_exists,       true),                     Context}.
 content_types_provided(Context)-> {cfg(content_types_provided,[{<<"text">>,<<"html">>,[]}]),Context}.
+content_encodings_provided(Context) -> {cfg(content_encodings_provided, [<<"identity">>]), Context}.
 generate_etag(Context)         -> {cfg(generate_etag,         undefined),                Context}.
 last_modified(Context)         -> {cfg(last_modified,         undefined),                Context}.
 moved_permanently(Context)     -> {cfg(moved_permanently,     false),                    Context}.

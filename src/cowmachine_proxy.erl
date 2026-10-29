@@ -186,12 +186,12 @@ parse_host(Host) ->
 -spec parse_for(For, Req) -> Result when
 	For :: undefined | binary(),
 	Req :: cowboy_req:req(),
-	Result :: {Host, Adr},
-	Host :: binary(),
-	Adr :: inet:ip_address().
+	Result :: {Adr, Host},
+	Adr :: inet:ip_address(),
+	Host :: binary().
 parse_for(undefined, Req) ->
     {Peer, _Port} = cowboy_req:peer(Req),
-    {list_to_binary(inet_parse:ntoa(Peer)), Peer};
+    {Peer, list_to_binary(inet_parse:ntoa(Peer))};
 parse_for(<<$[, Rest/binary>>, _Req) ->
     IP6 = hd(binary:split(Rest, <<"]">>)),
     {ok, Adr} = inet_parse:address(binary_to_list(IP6)),
@@ -320,10 +320,10 @@ is_trusted_proxy(local, Peer) ->
     z_ip_address:is_local(Peer);
 is_trusted_proxy(ip_allowlist, Peer) ->
     case cowmachine_config:env(ip_allowlist, undefined) of
-        {ok, Allowlist} ->
-            z_ip_address:ip_match(Peer, Allowlist);
         undefined ->
-            z_ip_address:is_local(Peer)
+            z_ip_address:is_local(Peer);
+        Allowlist ->
+            z_ip_address:ip_match(Peer, Allowlist)
     end;
 is_trusted_proxy(Allowlist, Peer) when is_list(Allowlist); is_binary(Allowlist) ->
     z_ip_address:ip_match(Peer, Allowlist).

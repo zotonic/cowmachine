@@ -328,8 +328,8 @@ decision(v3b6_upgrade, State, Context) ->
                 Connection ->
                     case contains_token(<<"upgrade">>, Connection) of
                         true ->
-                            {Choosen, S1, C1} = choose_upgrade(UpgradeHdr, State, Context),
-                            case Choosen of
+                            {Chosen, S1, C1} = choose_upgrade(UpgradeHdr, State, Context),
+                            case Chosen of
                                 none ->
                                     decision(v3b6, S1, C1);
                                 {_Protocol, UpgradeFunc} ->
@@ -438,7 +438,7 @@ decision(v3g7, State, Context) ->
     {Variances, S1, C1} = variances(State, Context),
     VarCtx = case Variances of
         [] -> C1;
-        _ -> cowmachine_req:set_resp_header(<<"vary">>, [Variances], C1)
+        _ -> cowmachine_req:set_resp_header(<<"vary">>, Variances, C1)
     end,
     decision_test(controller_call(resource_exists, S1, VarCtx), true, v3g8, v3h7);
 
@@ -459,7 +459,7 @@ decision(v3g11, State, Context) ->
 
 %% "If-Match: * exists"
 decision(v3h7, State, Context) ->
-    decision_test(cowmachine_req:get_req_header(<<"if-match">>, Context), "*", 412, v3i7, State, Context);
+    decision_test(cowmachine_req:get_req_header(<<"if-match">>, Context), <<"*">>, 412, v3i7, State, Context);
 
 %% "If-unmodified-since exists?"
 decision(v3h10, State, Context) ->
@@ -914,10 +914,10 @@ choose_upgrade(UpgradeHdr, State, Context) ->
 choose_upgrade1([], _) ->
     none;
 choose_upgrade1([Req|Requested], Provided) ->
-    case lists:keysearch(Req, 1, Provided) of
+    case lists:keyfind(Req, 1, Provided) of
         false ->
             choose_upgrade1(Requested, Provided);
-        {value, {_, Protocol, UpgradeFun}} ->
+        {_, Protocol, UpgradeFun} ->
             {Protocol, UpgradeFun}
     end.
 
