@@ -76,7 +76,7 @@ request(Context, Options) ->
     Env :: cowboy_middleware:env(),
 	Options :: map(),
 	Context :: cowmachine_req:context(),
-	Result :: {upgrade, UpgradeFun, State, Context} | cowboy_middleware:env() | any(),
+	Result :: {ok, Req, Env} | {stop, Req} | {upgrade, UpgradeFun, State, Context},
 	UpgradeFun :: atom(),
 	State :: cmstate().
 request_1(Controller, Req, Env, Options, Context) ->
@@ -85,105 +85,175 @@ request_1(Controller, Req, Env, Options, Context) ->
         cache = #{},
         options = Options
     },
-    Site = maps:get(site, Env, undefined),
-    ReqResult = try
-        EnvInit = cowmachine_req:init_env(Req, Env),
-        Context1 = cowmachine_req:set_env(EnvInit, Context),
-        Context2 = case maps:get(on_request, Options, undefined) of
-            undefined -> Context1;
-            FunReq when is_function(FunReq) -> FunReq(Context1)
-        end,
-        case cowmachine_decision_core:handle_request(State, Context2) of
-            {_Finish, _StateResult, ContextResult} ->
-                ContextResult1 = case maps:get(on_handled, Options, undefined) of
-                    undefined -> ContextResult;
-                    FunHandled when is_function(FunHandled) -> FunHandled(ContextResult)
-                end,
-                cowmachine_response:send_response(ContextResult1);
-            {upgrade, UpgradeFun, _StateResult, ContextResult} ->
-                {upgrade, UpgradeFun, _StateResult, ContextResult}
-        end
+    try
+        handle(State, Req, Env, Options, Context)
     catch
-        throw:{stop_request, 500, {Reason, Stacktrace}} when is_list(Stacktrace) ->
-            log(#{ at => ?AT, level => error, code => 500, text => <<"Stop request">>,
-                   reason => Reason, stack => Stacktrace}, Req),
-            handle_stop_request(500, Site, undefined, Req, Env, State, Context);
-        throw:{stop_request, 500, Reason} ->
-            log(#{ at => ?AT, level => error, code => 500, text => <<"Stop request">>, reason => Reason}, Req),
-            handle_stop_request(500, Site, {throw, Reason}, Req, Env, State, Context);
-        throw:{stop_request, ResponseCode, Reason} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
-            handle_stop_request(ResponseCode, Site, {throw, Reason}, Req, Env, State, Context);
-        throw:{stop_request, 500}:Stacktrace ->
-            log(#{ at => ?AT, level => error, code => 500, text => <<"Stop request">>,
-                   stack => Stacktrace}, Req),
-            handle_stop_request(500, Site, undefined, Req, Env, State, Context);
-        throw:{stop_request, ResponseCode} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
-            handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
-        throw:{stop_request, ResponseCode} when is_integer(ResponseCode) ->
-            {stop, cowboy_req:reply(ResponseCode, Req)};
-        throw:{stop_request, ResponseCode, _Reason} when is_integer(ResponseCode) ->
-            {stop, cowboy_req:reply(ResponseCode, Req)};
-        throw:invalid_percent_encoding ->
-            log(#{ at => ?AT, level => error, code => 400, text => <<"Illegal percent encoding">> }, Req),
-            {stop, cowboy_req:reply(400, Req)};
-        throw:invalid_qs_name ->
-            log(#{ at => ?AT, level => error, code => 400, text => <<"Illegal query argument name">> }, Req),
-            {stop, cowboy_req:reply(400, Req)};
-        throw:Reason:Stacktrace ->
-            log(#{ at => ?AT, level => error, code => 500, text => <<"Unexpected throw">>,
-                   class => throw, reason => Reason,
-                   stack => Stacktrace}, Req),
-            handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context);
-        Class:Reason:Stacktrace ->
-            log(#{ at => ?AT, level => error, code => 500, text => <<"Unexpected exception">>,
-                   class => Class, reason => Reason,
-                   stack => Stacktrace}, Req),
-            handle_stop_request(500, Site, {throw, {Reason, Stacktrace}}, Req, Env, State, Context)
+        % Process control exits must never be turned into an error page.
+        % This mirrors what cowboy_stream_h:request_process/3 does.
+        exit:Reason:Stack when Reason =:= normal; Reason =:= shutdown ->
+            erlang:raise(exit, Reason, Stack);
+        exit:Reason={shutdown, _}:Stack ->
+            erlang:raise(exit, Reason, Stack);
+        Class:Reason:Stack ->
+            stop_request(Class, Reason, Stack, State, Req, Env, Context)
+    end.
+
+%% @doc Run the request through the decision core and send the response.
+-spec handle(State, Req, Env, Options, Context) -> Result when
+    State :: cmstate(),
+    Req :: cowboy_req:req(),
+    Env :: cowboy_middleware:env(),
+    Options :: map(),
+    Context :: cowmachine_req:context(),
+    Result :: {ok, Req, Env} | {stop, Req} | {upgrade, UpgradeFun, State, Context},
+    UpgradeFun :: atom().
+handle(State, Req, Env, Options, Context) ->
+    EnvInit = cowmachine_req:init_env(Req, Env),
+    Context1 = cowmachine_req:set_env(EnvInit, Context),
+    Context2 = case maps:get(on_request, Options, undefined) of
+        undefined -> Context1;
+        FunReq when is_function(FunReq) -> FunReq(Context1)
     end,
-	ReqResult.
+    case cowmachine_decision_core:handle_request(State, Context2) of
+        {upgrade, UpgradeFun, StateResult, ContextResult} ->
+            {upgrade, UpgradeFun, StateResult, ContextResult};
+        {_Finish, _StateResult, ContextResult} ->
+            ContextResult1 = case maps:get(on_handled, Options, undefined) of
+                undefined -> ContextResult;
+                FunHandled when is_function(FunHandled) -> FunHandled(ContextResult)
+            end,
+            cowmachine_response:send_response(ContextResult1)
+    end.
+
+%% @doc Map a failure in the request process to a response. Failures that
+%% map to 4xx and 500 are handled by the error controller, other codes
+%% are sent as a bare response.
+-spec stop_request(Class, Reason, Stack, State, Req, Env, Context) -> Result when
+    Class :: error | exit | throw,
+    Reason :: term(),
+    Stack :: list(),
+    State :: cmstate(),
+    Req :: cowboy_req:req(),
+    Env :: cowboy_middleware:env(),
+    Context :: cowmachine_req:context(),
+    Result :: {ok, Req, Env} | {stop, Req}.
+stop_request(Class, Reason, Stack, State, Req, Env, Context) ->
+    {Code, Level, Text} = classify(Class, Reason),
+    log_failure(Level, Code, Text, Class, Reason, Stack, Req),
+    case use_error_controller(Code) of
+        true ->
+            ErrorReason = error_reason(Class, Reason, Stack),
+            handle_stop_request(Code, ErrorReason, Req, Env, State, Context);
+        false ->
+            {stop, cowboy_req:reply(Code, Req)}
+    end.
+
+%% @doc Classify a failure as a response code, a log level (`undefined' for
+%% no logging) and a log text. Cowboy signals request errors using `exit', see
+%% `cowboy_req:parse_header/3' and `cowboy_req:read_body/2'.
+-spec classify(Class, Reason) -> {Code, Level, Text} when
+    Class :: error | exit | throw,
+    Reason :: term(),
+    Code :: integer(),
+    Level :: undefined | warning | error,
+    Text :: binary().
+classify(throw, {stop_request, Code}) when is_integer(Code) ->
+    {Code, stop_level(Code), <<"Stop request">>};
+classify(throw, {stop_request, Code, _Reason}) when is_integer(Code) ->
+    {Code, stop_level(Code), <<"Stop request">>};
+classify(throw, invalid_percent_encoding) ->
+    {400, warning, <<"Illegal percent encoding">>};
+classify(throw, invalid_qs_name) ->
+    {400, warning, <<"Illegal query argument name">>};
+classify(throw, too_many_qs_names) ->
+    {400, warning, <<"Too many query arguments">>};
+classify(exit, {request_error, timeout, _}) ->
+    {408, warning, <<"Request timeout">>};
+classify(exit, {request_error, payload_too_large, _}) ->
+    {413, warning, <<"Request body too large">>};
+classify(exit, {request_error, _, _}) ->
+    {400, warning, <<"Bad request">>};
+classify(exit, timeout) ->
+    % Raised by cowboy_req:read_body/2 if the body is not received in time.
+    {408, warning, <<"Request timeout">>};
+classify(throw, _) ->
+    {500, error, <<"Unexpected throw">>};
+classify(_Class, _Reason) ->
+    {500, error, <<"Unexpected exception">>}.
+
+stop_level(500) -> error;
+stop_level(_) -> undefined.
+
+use_error_controller(500) -> true;
+use_error_controller(Code) -> Code >= 400 andalso Code < 500.
+
+%% @doc The reason passed to the error controller. Explicit stop requests keep
+%% the old format. Other failures are tagged with their real class.
+error_reason(throw, {stop_request, _Code}, _Stack) ->
+    undefined;
+error_reason(throw, {stop_request, _Code, Reason}, _Stack) ->
+    {throw, Reason};
+error_reason(Class, Reason, Stack) ->
+    {Class, {Reason, Stack}}.
+
+log_failure(undefined, _Code, _Text, _Class, _Reason, _Stack, _Req) ->
+    ok;
+log_failure(Level, Code, Text, Class, Reason, Stack, Req) ->
+    Report = #{ at => ?AT, level => Level, code => Code, text => Text,
+                class => Class, reason => Reason },
+    log(case Level of
+            error -> Report#{ stack => Stack };
+            _ -> Report
+        end, Req).
 
 
 % @todo add the error controller as an application env, if not defined then just terminate with the corresponding error code.
 
--spec handle_stop_request(ResponseCode, Site, Reason, Req, Env, State, Context) -> Result when
-	ResponseCode :: integer(), 
-	Site :: atom() | undefined, 
-	Reason :: any(), 
+-spec handle_stop_request(ResponseCode, Reason, Req, Env, State, Context) -> Result when
+	ResponseCode :: integer(),
+	Reason :: any(),
 	Req :: cowboy_req:req(),
     Env :: cowboy_middleware:env(),
-	State :: cmstate(), 
+	State :: cmstate(),
 	Context :: cowmachine_req:context(),
 	Result :: {ok, Req, Env} | {stop, Req}.
-handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
-    State1 = State#cmstate{
-        controller = controller_http_error
-    },
-    EnvInit = cowmachine_req:init_env(Req, Env),
-    Context1 = cowmachine_req:set_env(EnvInit, Context),
-    Context2 = cowmachine_req:set_metadata(controller_module_error, State#cmstate.controller, Context1),
-    Context3 = cowmachine_req:set_metadata(http_status_code, ResponseCode, Context2),
-    Context4 = cowmachine_req:set_metadata(error_reason, Reason, Context3),
+handle_stop_request(ResponseCode, Reason, Req, Env, State, Context) ->
     try
+        State1 = State#cmstate{
+            controller = controller_http_error
+        },
+        EnvInit = cowmachine_req:init_error_env(Req, Env),
+        Context1 = cowmachine_req:set_env(EnvInit, Context),
+        Context2 = cowmachine_req:set_metadata(controller_module_error, State#cmstate.controller, Context1),
+        Context3 = cowmachine_req:set_metadata(http_status_code, ResponseCode, Context2),
+        Context4 = cowmachine_req:set_metadata(error_reason, Reason, Context3),
         {_Finish, _StateResult, ContextResult} = cowmachine_decision_core:handle_request(State1, Context4),
         ContextRespCode = cowmachine_req:set_response_code(ResponseCode, ContextResult),
         cowmachine_response:send_response(ContextRespCode)
     catch
-        throw:{stop_request, Code, CReason} ->
+        exit:CReason:CStack when CReason =:= normal; CReason =:= shutdown ->
+            erlang:raise(exit, CReason, CStack);
+        exit:CReason={shutdown, _}:CStack ->
+            erlang:raise(exit, CReason, CStack);
+        CClass:CReason:CStack ->
+            % The error controller failed, fall back to a bare response. Use
+            % the code of the original failure, unless the error controller
+            % explicitly asked for another code.
+            {_, _, Text} = classify(CClass, CReason),
+            FallbackCode = fallback_code(CClass, CReason, ResponseCode),
             log(#{ at => ?AT, level => warning,
-                   text => "Stop request",
-                   code => Code,
-                   reason => CReason }, Req),
-            {stop, cowboy_req:reply(Code, Req)};
-        Class:CReason:Stacktrace->
-            log(#{ at => ?AT, level => warning,
-                   text => "Unexpected exception",
-                   code => 500,
-                   class => Class,
+                   text => Text,
+                   code => FallbackCode,
+                   class => CClass,
                    reason => CReason,
-                   stack => Stacktrace
+                   stack => CStack
                  }, Req),
-            {stop, cowboy_req:reply(500, Req)}
+            {stop, cowboy_req:reply(FallbackCode, Req)}
     end.
+
+fallback_code(throw, {stop_request, Code}, _Default) when is_integer(Code) -> Code;
+fallback_code(throw, {stop_request, Code, _}, _Default) when is_integer(Code) -> Code;
+fallback_code(_Class, _Reason, Default) -> Default.
 
 
 %%

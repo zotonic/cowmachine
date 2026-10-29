@@ -26,7 +26,8 @@
 -include("cowmachine_log.hrl").
 
 -export([
-    init_env/2
+    init_env/2,
+    init_error_env/2
     ]).
 
 -export([
@@ -197,6 +198,25 @@
 	Env :: cowboy_middleware:env(), 
 	Result :: cowboy_middleware:env().
 init_env(Req, Env) ->
+    init_env_1(Req, Env, cowboy_req:parse_cookies(Req)).
+
+%% @doc Like init_env/2, but for building an error response. A malformed cookie
+%% header made the original request fail, so it must not make the error
+%% response fail again. In that case the request is treated as having no cookies.
+
+-spec init_error_env(Req, Env) -> Result when
+	Req :: cowboy_req:req(),
+	Env :: cowboy_middleware:env(),
+	Result :: cowboy_middleware:env().
+init_error_env(Req, Env) ->
+    Cookies = try
+        cowboy_req:parse_cookies(Req)
+    catch
+        exit:{request_error, _, _} -> []
+    end,
+    init_env_1(Req, Env, Cookies).
+
+init_env_1(Req, Env, Cookies) ->
     Bindings = maps:get(bindings, Req, #{}),
     Env1 = lists:foldl(
                 fun(K, Acc) -> maps:remove(K, Acc) end,
@@ -220,7 +240,7 @@ init_env(Req, Env) ->
         cowmachine_disp_path => maps:get('*', Bindings, undefined),
         cowmachine_range_ok => true,
 
-        cowmachine_cookies => cowboy_req:parse_cookies(Req)
+        cowmachine_cookies => Cookies
     }.
 
 -spec ensure_proxy_args(Req, Env) -> Result when
