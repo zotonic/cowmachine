@@ -87,14 +87,16 @@ listener_info(Info) ->
 
 %% Ranch's options: the listener's socket options, and its connection limits.
 transport_opts(TlsOpts, #{ port := Port } = Opts) ->
-    SocketOpts = [{port, Port}]
-        ++ [{ip, IP} || #{ ip := IP } <- [Opts]]
-        ++ [{ipv6_v6only, V6Only} || #{ ipv6_v6only := V6Only } <- [Opts]]
-        ++ [{backlog, Backlog} || #{ backlog := Backlog } <- [Opts]]
-        ++ TlsOpts,
+    SocketOpts = maps:fold(fun socket_opt/3, [{port, Port} | TlsOpts], Opts),
     maps:merge(
         #{ socket_opts => SocketOpts },
         maps:with([max_connections, num_acceptors], Opts)).
+
+%% The socket option a listener option sets, if any.
+socket_opt(ip, IP, Acc) -> [{ip, IP} | Acc];
+socket_opt(ipv6_v6only, V6Only, Acc) -> [{ipv6_v6only, V6Only} | Acc];
+socket_opt(backlog, Backlog, Acc) -> [{backlog, Backlog} | Acc];
+socket_opt(_Key, _Value, Acc) -> Acc.
 
 %% Cowboy's options: the middlewares and their environment, the request
 %% timeout and the metrics, under the listener's own `options'.
