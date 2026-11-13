@@ -194,13 +194,13 @@ send_response_bodyfun(Body, Code, all, Context) ->
     Length = iolist_size(Body),
     Headers = response_headers(Code, Length, Context),
     Req = cowmachine_req:req(Context),
-    Req1 = cowboy_req:reply(Code, Headers, Body, Req),
+    Req1 = cowmachine_server:reply(Code, Headers, Body, Req),
     cowmachine_req:set_req(Req1, Context);
 send_response_bodyfun(Body, Code, Parts, Context) ->
     set_idle_timeout(infinity, Context),
     Headers = response_headers(Context),
     Req = cowmachine_req:req(Context),
-    Req1 = cowboy_req:stream_reply(Code, Headers, Req),
+    Req1 = cowmachine_server:stream_reply(Code, Headers, Req),
     Context1 = cowmachine_req:set_req(Req1, Context),
     Context2 = send_parts(Context1, Parts, iolist_to_binary(Body)),
     set_idle_timeout(?DEFAULT_IDLE_TIMEOUT, Context2),
@@ -229,7 +229,7 @@ start_response_stream(Code, Length, InitialStream, Parts, Context) ->
     end,
     Headers = response_headers(Code1, Length, Context1),
     Req = cowmachine_req:req(Context1),
-    Req1 = cowboy_req:stream_reply(Code, Headers, Req),
+    Req1 = cowmachine_server:stream_reply(Code, Headers, Req),
     Context2 = cowmachine_req:set_req(Req1, Context1),
     FirstHunk = case InitialStream of
         {InitialData, InitialFun} ->
@@ -260,9 +260,9 @@ stream_initial_fun(done, _Parts) ->
     Context :: cowmachine_req:context().
 set_idle_timeout(Timeout, Context) ->
     Req = cowmachine_req:req(Context),
-    cowboy_req:cast({set_options, #{
+    cowmachine_server:set_options(#{
         idle_timeout => Timeout
-    }}, Req).
+    }, Req).
 
 %% @doc Check if we support ranges on the data stream (body or function)
 -spec is_streaming_range(Stream) -> Result when
@@ -484,7 +484,7 @@ send_chunk(Context, [], nofin) ->
 send_chunk(Context, Data, FinNoFin) ->
     Data1 = iolist_to_binary(Data),
     Req = cowmachine_req:req(Context),
-    ok = cowboy_req:stream_body(Data1, FinNoFin, Req),
+    ok = cowmachine_server:stream_body(Data1, FinNoFin, Req),
     Context.
 
 -spec get_range(Context) -> Result when

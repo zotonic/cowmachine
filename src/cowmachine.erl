@@ -120,15 +120,15 @@ request_1(Controller, Req, Env, Options, Context) ->
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode), ResponseCode >= 400, ResponseCode < 500 ->
             handle_stop_request(ResponseCode, Site, undefined, Req, Env, State, Context);
         throw:{stop_request, ResponseCode} when is_integer(ResponseCode) ->
-            {stop, cowboy_req:reply(ResponseCode, Req)};
+            {stop, cowmachine_server:reply(ResponseCode, Req)};
         throw:{stop_request, ResponseCode, _Reason} when is_integer(ResponseCode) ->
-            {stop, cowboy_req:reply(ResponseCode, Req)};
+            {stop, cowmachine_server:reply(ResponseCode, Req)};
         throw:invalid_percent_encoding ->
             log(#{ at => ?AT, level => error, code => 400, text => <<"Illegal percent encoding">> }, Req),
-            {stop, cowboy_req:reply(400, Req)};
+            {stop, cowmachine_server:reply(400, Req)};
         throw:invalid_qs_name ->
             log(#{ at => ?AT, level => error, code => 400, text => <<"Illegal query argument name">> }, Req),
-            {stop, cowboy_req:reply(400, Req)};
+            {stop, cowmachine_server:reply(400, Req)};
         throw:Reason:Stacktrace ->
             log(#{ at => ?AT, level => error, code => 500, text => <<"Unexpected throw">>,
                    class => throw, reason => Reason,
@@ -173,7 +173,7 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
                    text => "Stop request",
                    code => Code,
                    reason => CReason }, Req),
-            {stop, cowboy_req:reply(Code, Req)};
+            {stop, cowmachine_server:reply(Code, Req)};
         Class:CReason:Stacktrace->
             log(#{ at => ?AT, level => warning,
                    text => "Unexpected exception",
@@ -182,7 +182,7 @@ handle_stop_request(ResponseCode, _Site, Reason, Req, Env, State, Context) ->
                    reason => CReason,
                    stack => Stacktrace
                  }, Req),
-            {stop, cowboy_req:reply(500, Req)}
+            {stop, cowmachine_server:reply(500, Req)}
     end.
 
 

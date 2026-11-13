@@ -21,7 +21,7 @@ upgrade(Handler, Context) ->
     % the module will be loaded.
     {module, Handler} = code:ensure_loaded(Handler),
 
-    cowboy_websocket:upgrade(Req, Env, Handler, Context, Opts).
+    cowmachine_server:websocket_upgrade(Req, Env, Handler, Context, Opts).
 
 % Reasonably safe websocket config.
 ws_opts(Context) ->

@@ -822,7 +822,7 @@ req_body(MaxLength, Context) when MaxLength > 0 ->
         length => MaxLength,
         timeout => 10000
     },
-    case cowboy_req:read_body(Req, Opts) of
+    case cowmachine_server:read_body(Req, Opts) of
         {ok, Body, Req2} ->
             {Body, set_req(Req2, Context)};
         {more, _Body, Req2} ->
@@ -845,7 +845,7 @@ stream_req_body(ChunkSize, Context) ->
         length => ChunkSize,
         timeout => 10000
     },
-    {Next, Chunk, Req1} = cowboy_req:read_body(req(Context), Opts),
+    {Next, Chunk, Req1} = cowmachine_server:read_body(req(Context), Opts),
     {Next, Chunk, set_req(Req1, Context)}.
 
 

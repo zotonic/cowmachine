@@ -7,6 +7,8 @@
 %% Run with: rebar3 eunit -v -m cowmachine_e2e_tests
 %%
 %% This module acts as both a Cowboy middleware and a Cowmachine controller.
+%% The listeners run on the server the `server' key of the `cowmachine'
+%% application's environment names (`cowmachine_server'), Cowboy by default.
 %% Per-test controller behaviour is configured via the application env key
 %% 'test_opts' in the 'cowmachine' application (a map).
 %%
@@ -50,7 +52,7 @@ get_ok_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 200, "OK"}, _, "Hello World"}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_get_ok).
+    cowmachine_server:stop_listener(e2e_get_ok).
 
 %% HEAD returns 200 with an empty body (stripped by the HTTP layer)
 head_ok_test() ->
@@ -60,7 +62,7 @@ head_ok_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 200, "OK"}, _, ""}},
         httpc:request(head, {url(Port), []}, [], [])),
-    cowboy:stop_listener(e2e_head_ok).
+    cowmachine_server:stop_listener(e2e_head_ok).
 
 %% -- service_available (v3b13) ----------------------------------------
 
@@ -72,7 +74,7 @@ service_unavailable_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 503, _}, _, _}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_service_unavailable).
+    cowmachine_server:stop_listener(e2e_service_unavailable).
 
 %% -- uri_too_long (v3b11) ---------------------------------------------
 
@@ -84,7 +86,7 @@ uri_too_long_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 414, _}, _, _}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_uri_too_long).
+    cowmachine_server:stop_listener(e2e_uri_too_long).
 
 %% -- allowed_methods (v3b10) ------------------------------------------
 
@@ -96,7 +98,7 @@ method_not_allowed_test() ->
     {ok, {{"HTTP/1.1", 405, _}, Headers, _}} =
         httpc:request(post, {url(Port), [], "text/plain", "body"}, [], []),
     ?assert(lists:keymember("allow", 1, Headers)),
-    cowboy:stop_listener(e2e_method_not_allowed).
+    cowmachine_server:stop_listener(e2e_method_not_allowed).
 
 %% -- malformed_request (v3b9b) ----------------------------------------
 
@@ -108,7 +110,7 @@ malformed_request_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 400, _}, _, _}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_malformed_request).
+    cowmachine_server:stop_listener(e2e_malformed_request).
 
 %% -- is_authorized (v3b8) --------------------------------------------
 
@@ -119,7 +121,7 @@ unauthorized_test() ->
     Port = start_listener(e2e_unauthorized),
     {ok, {{"HTTP/1.1", 401, _}, Headers, _}} = httpc:request(url(Port)),
     ?assert(lists:keymember("www-authenticate", 1, Headers)),
-    cowboy:stop_listener(e2e_unauthorized).
+    cowmachine_server:stop_listener(e2e_unauthorized).
 
 %% is_authorized returns a binary challenge  →  401 with that challenge
 unauthorized_with_challenge_test() ->
@@ -129,7 +131,7 @@ unauthorized_with_challenge_test() ->
     {ok, {{"HTTP/1.1", 401, _}, Headers, _}} = httpc:request(url(Port)),
     {_, Challenge} = lists:keyfind("www-authenticate", 1, Headers),
     ?assertEqual("Bearer realm=\"api\"", Challenge),
-    cowboy:stop_listener(e2e_unauthorized_challenge).
+    cowmachine_server:stop_listener(e2e_unauthorized_challenge).
 
 %% -- forbidden (v3b7) -------------------------------------------------
 
@@ -141,7 +143,7 @@ forbidden_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 403, _}, _, _}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_forbidden).
+    cowmachine_server:stop_listener(e2e_forbidden).
 
 %% -- known_content_type (v3b5) ----------------------------------------
 
@@ -153,7 +155,7 @@ unsupported_media_type_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 415, _}, _, _}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_unsupported_media_type).
+    cowmachine_server:stop_listener(e2e_unsupported_media_type).
 
 %% -- valid_entity_length (v3b4) ---------------------------------------
 
@@ -165,7 +167,7 @@ request_entity_too_large_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 413, _}, _, _}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_entity_too_large).
+    cowmachine_server:stop_listener(e2e_entity_too_large).
 
 %% -- OPTIONS (v3b3) ---------------------------------------------------
 
@@ -180,7 +182,7 @@ options_test() ->
     {ok, {{"HTTP/1.1", 200, "OK"}, Headers, _}} =
         httpc:request(options, {url(Port), []}, [], []),
     ?assert(lists:keymember("x-custom-option", 1, Headers)),
-    cowboy:stop_listener(e2e_options).
+    cowmachine_server:stop_listener(e2e_options).
 
 %% -- content negotiation (v3c3/v3c4) ----------------------------------
 
@@ -193,7 +195,7 @@ accept_negotiation_ok_test() ->
         httpc:request(get, {url(Port), [{"accept", "text/html"}]}, [], []),
     {_, CT} = lists:keyfind("content-type", 1, Headers),
     ?assert(lists:prefix("text/html", CT)),
-    cowboy:stop_listener(e2e_accept_ok).
+    cowmachine_server:stop_listener(e2e_accept_ok).
 
 %% Accept header does not match content_types_provided  →  406 Not Acceptable
 accept_negotiation_not_acceptable_test() ->
@@ -204,7 +206,7 @@ accept_negotiation_not_acceptable_test() ->
         {ok, {{"HTTP/1.1", 406, _}, _, _}},
         httpc:request(
             get, {url(Port), [{"accept", "application/json"}]}, [], [])),
-    cowboy:stop_listener(e2e_not_acceptable).
+    cowmachine_server:stop_listener(e2e_not_acceptable).
 
 %% -- resource_exists (v3g7) -------------------------------------------
 
@@ -222,7 +224,7 @@ vary_header_test() ->
     {ok, {{"HTTP/1.1", 200, "OK"}, Headers, _}} = httpc:request(url(Port)),
     {_, Vary} = lists:keyfind("vary", 1, Headers),
     ?assertEqual("accept, accept-encoding", Vary),
-    cowboy:stop_listener(e2e_vary).
+    cowmachine_server:stop_listener(e2e_vary).
 
 %% resource_exists = false, not previously existed  →  404 Not Found
 resource_not_found_test() ->
@@ -232,7 +234,7 @@ resource_not_found_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 404, _}, _, _}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_not_found).
+    cowmachine_server:stop_listener(e2e_not_found).
 
 %% -- previously_existed / moved_permanently / moved_temporarily -------
 
@@ -244,7 +246,7 @@ previously_existed_gone_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 410, _}, _, _}},
         httpc:request(url(Port))),
-    cowboy:stop_listener(e2e_gone).
+    cowmachine_server:stop_listener(e2e_gone).
 
 %% moved_permanently  →  301 with Location header
 moved_permanently_test() ->
@@ -259,7 +261,7 @@ moved_permanently_test() ->
         httpc:request(get, {url(Port), []}, [{autoredirect, false}], []),
     {_, Location} = lists:keyfind("location", 1, Headers),
     ?assertEqual("http://example.com/new", Location),
-    cowboy:stop_listener(e2e_moved_permanently).
+    cowmachine_server:stop_listener(e2e_moved_permanently).
 
 %% moved_temporarily  →  307 with Location header
 moved_temporarily_test() ->
@@ -274,7 +276,7 @@ moved_temporarily_test() ->
         httpc:request(get, {url(Port), []}, [{autoredirect, false}], []),
     {_, Location} = lists:keyfind("location", 1, Headers),
     ?assertEqual("http://example.com/temp", Location),
-    cowboy:stop_listener(e2e_moved_temporarily).
+    cowmachine_server:stop_listener(e2e_moved_temporarily).
 
 %% -- ETag / caching (v3g11, v3k13, v3l17, etag_etc_helper) -----------
 
@@ -285,7 +287,7 @@ etag_in_response_test() ->
     Port = start_listener(e2e_etag),
     {ok, {{"HTTP/1.1", 200, "OK"}, Headers, _}} = httpc:request(url(Port)),
     ?assert(lists:keymember("etag", 1, Headers)),
-    cowboy:stop_listener(e2e_etag).
+    cowmachine_server:stop_listener(e2e_etag).
 
 %% last_modified set  →  Last-Modified header present in 200 response
 last_modified_in_response_test() ->
@@ -294,7 +296,7 @@ last_modified_in_response_test() ->
     Port = start_listener(e2e_last_modified),
     {ok, {{"HTTP/1.1", 200, "OK"}, Headers, _}} = httpc:request(url(Port)),
     ?assert(lists:keymember("last-modified", 1, Headers)),
-    cowboy:stop_listener(e2e_last_modified).
+    cowmachine_server:stop_listener(e2e_last_modified).
 
 %% If-None-Match: "etag"  matches generate_etag  →  304 Not Modified (v3k13)
 if_none_match_not_modified_test() ->
@@ -305,7 +307,7 @@ if_none_match_not_modified_test() ->
         {ok, {{"HTTP/1.1", 304, _}, _, _}},
         httpc:request(
             get, {url(Port), [{"if-none-match", "\"abc123\""}]}, [], [])),
-    cowboy:stop_listener(e2e_if_none_match).
+    cowmachine_server:stop_listener(e2e_if_none_match).
 
 %% If-None-Match: *  with an existing resource and GET  →  304 (v3i13 / v3j18)
 if_none_match_star_test() ->
@@ -316,7 +318,7 @@ if_none_match_star_test() ->
         {ok, {{"HTTP/1.1", 304, _}, _, _}},
         httpc:request(
             get, {url(Port), [{"if-none-match", "*"}]}, [], [])),
-    cowboy:stop_listener(e2e_if_none_match_star).
+    cowmachine_server:stop_listener(e2e_if_none_match_star).
 
 %% If-Modified-Since after last_modified date  →  304 Not Modified (v3l17)
 if_modified_since_not_modified_test() ->
@@ -330,7 +332,7 @@ if_modified_since_not_modified_test() ->
         {ok, {{"HTTP/1.1", 304, _}, _, _}},
         httpc:request(
             get, {url(Port), [{"if-modified-since", ImsDate}]}, [], [])),
-    cowboy:stop_listener(e2e_if_modified_since).
+    cowmachine_server:stop_listener(e2e_if_modified_since).
 
 %% -- DELETE (v3m16 / v3m20 / v3m20b) ---------------------------------
 
@@ -342,7 +344,7 @@ delete_no_content_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 204, _}, _, _}},
         httpc:request(delete, {url(Port), []}, [], [])),
-    cowboy:stop_listener(e2e_delete_no_content).
+    cowmachine_server:stop_listener(e2e_delete_no_content).
 
 %% DELETE with delete_completed = false  →  202 Accepted (async deletion)
 delete_accepted_test() ->
@@ -355,7 +357,7 @@ delete_accepted_test() ->
     ?assertMatch(
         {ok, {{"HTTP/1.1", 202, _}, _, _}},
         httpc:request(delete, {url(Port), []}, [], [])),
-    cowboy:stop_listener(e2e_delete_accepted).
+    cowmachine_server:stop_listener(e2e_delete_accepted).
 
 %% -- POST (v3n16 / v3n11) --------------------------------------------
 
@@ -368,14 +370,11 @@ post_to_resource_test() ->
         {ok, {{"HTTP/1.1", 200, "OK"}, _, "hello post"}},
         httpc:request(
             post, {url(Port), [], "text/plain", "hello post"}, [], [])),
-    cowboy:stop_listener(e2e_post).
+    cowmachine_server:stop_listener(e2e_post).
 
 %%
 %% Controller implementation
 %%
-
-cowboy_opts() ->
-    #{middlewares => [?MODULE, cowmachine]}.
 
 %% Cowboy middleware — places this module in the request as controller.
 execute(Req, Env) ->
@@ -442,5 +441,8 @@ url(Port) ->
     "http://127.0.0.1:" ++ integer_to_list(Port) ++ "/".
 
 start_listener(Name) ->
-    {ok, _} = cowboy:start_clear(Name, [{port, 0}], cowboy_opts()),
-    ranch:get_port(Name).
+    {ok, _} = cowmachine_server:start_listener(Name, #{
+        port => 0,
+        middlewares => [?MODULE, cowmachine]
+    }),
+    cowmachine_server:port(Name).
