@@ -23,9 +23,9 @@
 %%     map shaped like Cowboy's, described below.</li>
 %% <li>It does what touches the connection: sending responses, reading the
 %%     body, changing the connection's options and upgrading to a WebSocket.
-%%     The functions of this module call these callbacks for the server in the
-%%     request's `cowmachine_server' key, and Cowboy's when the key is
-%%     absent.</li>
+%%     `cowmachine_cowreq' and `websocket_upgrade/5' call these callbacks for
+%%     the server in the request's `cowmachine_server' key, and Cowboy's when
+%%     the key is absent.</li>
 %% </ul>
 %%
 %% == The listener options ==
@@ -53,9 +53,9 @@
 %%
 %% == The request map ==
 %%
-%% Cowmachine reads and sets the request map with `cowboy_req''s functions
-%% that do not touch the connection, so a server's map carries the keys and
-%% value types of Cowboy's:
+%% `cowmachine_cowreq' reads and sets fields of the request map the way
+%% `cowboy_req' does, so a server's map carries the keys and value types of
+%% Cowboy's:
 %%
 %% <ul>
 %% <li>`cowmachine_server': the server module</li>
@@ -70,13 +70,14 @@
 %%     when unknown)</li>
 %% </ul>
 %%
-%% `cowboy_req''s setters add the response keys: `resp_headers' (a map),
+%% `cowmachine_cowreq''s setters add the response keys: `resp_headers' (a map),
 %% `resp_cookies' (a map of names to complete `set-cookie' values) and
 %% `resp_body'.
 %%
 %% == The request callbacks ==
 %%
-%% They take and return what the `cowboy_req' functions of the same name do:
+%% They take and return what the `cowboy_req' functions of the same name do,
+%% so code written against `cowmachine_cowreq' runs on any server:
 %%
 %% <ul>
 %% <li>`reply/4' sends `resp_headers' and every `resp_cookies' value as
@@ -84,8 +85,10 @@
 %%     request without the `resp_*' keys and with `has_sent_resp' set. A
 %%     `204' or `304' response, or a reply to a `HEAD' request, has no
 %%     body.</li>
-%% <li>`read_body/2' takes Cowboy's options (`length', `period', `timeout')
-%%     and exits as Cowboy does when the body can't be read.</li>
+%% <li>`read_body/2', `read_part/2' and `read_part_body/2' take Cowboy's
+%%     options (`length', `period', `timeout') and exit with
+%%     `{request_error, Reason, Message}' when the body can't be read, as
+%%     Cowboy does. `read_part/2' returns the part's headers as a map.</li>
 %% <li>`set_options/2' takes the options cowmachine changes while it serves a
 %%     request: `idle_timeout' (`infinity' while it streams a response) and
 %%     `metrics_user_data' (merged into the `user_data' of the request's
@@ -122,19 +125,12 @@
 
     execute/3,
 
-    reply/2,
-    reply/4,
-    stream_reply/3,
-    stream_body/3,
-    read_body/2,
-    set_options/2,
     websocket_upgrade/5
 ]).
 
 -export_type([
     listener_ref/0,
-    listener_opts/0,
-    request_opts/0
+    listener_opts/0
 ]).
 
 -type listener_ref() :: ranch:ref().
@@ -158,12 +154,6 @@
 }.
 %% A listener's options, described in the module documentation.
 
--type request_opts() :: #{
-    idle_timeout => timeout(),
-    metrics_user_data => map()
-}.
-%% The options `set_options/2' changes while a request is served.
-
 %% Listeners
 
 -callback start_listener(Ref :: listener_ref(), Opts :: listener_opts()) ->
@@ -178,15 +168,26 @@
 -callback reply(Status :: cowboy:http_status(), Headers :: cowboy:http_headers(),
                 Body :: cowboy_req:resp_body(), Req) -> Req when Req :: cowboy_req:req().
 
+-callback inform(Status :: cowboy:http_status(), Headers :: cowboy:http_headers(),
+                 Req :: cowboy_req:req()) -> ok.
+
 -callback stream_reply(Status :: cowboy:http_status(), Headers :: cowboy:http_headers(), Req) ->
     Req when Req :: cowboy_req:req().
 
 -callback stream_body(Data :: iodata(), IsFin :: fin | nofin, Req :: cowboy_req:req()) -> ok.
 
+-callback stream_trailers(Trailers :: cowboy:http_headers(), Req :: cowboy_req:req()) -> ok.
+
 -callback read_body(Req, Opts :: cowboy_req:read_body_opts()) ->
     {ok, binary(), Req} | {more, binary(), Req} when Req :: cowboy_req:req().
 
--callback set_options(Opts :: request_opts(), Req :: cowboy_req:req()) -> ok.
+-callback read_part(Req, Opts :: cowboy_req:read_body_opts()) ->
+    {ok, cowboy:http_headers(), Req} | {done, Req} when Req :: cowboy_req:req().
+
+-callback read_part_body(Req, Opts :: cowboy_req:read_body_opts()) ->
+    {ok, binary(), Req} | {more, binary(), Req} when Req :: cowboy_req:req().
+
+-callback set_options(Opts :: cowmachine_cowreq:request_opts(), Req :: cowboy_req:req()) -> ok.
 
 -callback websocket_upgrade(Req, Env, Handler :: module(), State :: term(),
                             Opts :: cowboy_websocket:opts()) ->
@@ -235,42 +236,6 @@ execute(Req, Env, [Middleware | Rest]) ->
         {ok, Req1, Env1} -> execute(Req1, Env1, Rest);
         {stop, Req1} -> {stop, Req1}
     end.
-
-%% @doc Send a response with the request's `resp_body', as
-%% `cowboy_req:reply/2' does.
--spec reply(cowboy:http_status(), Req) -> Req when Req :: cowboy_req:req().
-reply(Status, #{ resp_body := Body } = Req) ->
-    reply(Status, #{}, Body, Req);
-reply(Status, Req) ->
-    reply(Status, #{}, <<>>, Req).
-
-%% @doc Send a response, as `cowboy_req:reply/4' does.
--spec reply(cowboy:http_status(), cowboy:http_headers(), cowboy_req:resp_body(), Req) -> Req
-    when Req :: cowboy_req:req().
-reply(Status, Headers, Body, Req) ->
-    (of_req(Req)):reply(Status, Headers, Body, Req).
-
-%% @doc Start a streamed response, as `cowboy_req:stream_reply/3' does.
--spec stream_reply(cowboy:http_status(), cowboy:http_headers(), Req) -> Req
-    when Req :: cowboy_req:req().
-stream_reply(Status, Headers, Req) ->
-    (of_req(Req)):stream_reply(Status, Headers, Req).
-
-%% @doc Send part of a streamed response, as `cowboy_req:stream_body/3' does.
--spec stream_body(iodata(), fin | nofin, cowboy_req:req()) -> ok.
-stream_body(Data, IsFin, Req) ->
-    (of_req(Req)):stream_body(Data, IsFin, Req).
-
-%% @doc Read the request body, as `cowboy_req:read_body/2' does.
--spec read_body(Req, cowboy_req:read_body_opts()) -> {ok, binary(), Req} | {more, binary(), Req}
-    when Req :: cowboy_req:req().
-read_body(Req, Opts) ->
-    (of_req(Req)):read_body(Req, Opts).
-
-%% @doc Change options of the connection serving a request.
--spec set_options(request_opts(), cowboy_req:req()) -> ok.
-set_options(Opts, Req) ->
-    (of_req(Req)):set_options(Opts, Req).
 
 %% @doc Upgrade the request to a WebSocket running `Handler''s
 %% `cowboy_websocket' callbacks, as `cowboy_websocket:upgrade/5' does.

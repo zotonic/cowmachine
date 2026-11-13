@@ -133,9 +133,11 @@ module that implements the `cowmachine_server` behaviour:
 
 Listeners started with `cowmachine_server:start_listener/2` then run on that
 server, and Cowmachine sends responses and reads request bodies through it.
-Middlewares and controllers that use `cowmachine_server` rather than
-`cowboy_req` for what touches the connection (sending a response, reading
-the body) run unchanged on any server.
+
+Middlewares get a request map shaped like Cowboy's on every server. Read and
+answer it with `cowmachine_cowreq`, which has the same functions as
+`cowboy_req`, and they run unchanged on any server. Code that calls
+`cowboy_req` to send a response or read the body runs on Cowboy only.
 
 ## Dispatching
 

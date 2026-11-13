@@ -9,7 +9,7 @@
 -spec upgrade(Handler, Context) -> Result when
 	Handler :: atom(), 
 	Context :: cowmachine_req:context(),
-	Result :: {ok, cowboy_req:req(), cowboy_middleware:env()}.
+	Result :: {ok, cowmachine_cowreq:req(), cowboy_middleware:env()}.
 upgrade(Handler, Context) ->
     Req = cowmachine_req:req(Context),
     Env = cowmachine_req:env(Context),

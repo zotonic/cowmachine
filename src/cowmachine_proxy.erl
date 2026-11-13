@@ -37,7 +37,7 @@
 %%      requests a redirect or return a `400' on an unknown host.
 
 -spec execute(Req, Env) -> Result when
-	Req :: cowboy_req:req(), 
+	Req :: cowmachine_cowreq:req(), 
 	Env :: cowboy_middleware:env(),
 	Result :: {ok, Req, Env} | {stop, Req}.
 execute(Req, Env) ->
@@ -46,13 +46,13 @@ execute(Req, Env) ->
 %% @doc Update the environment based on the content of the request.
 
 -spec update_env(Req, Env) -> Result when
-	Req :: cowboy_req:req(), 
+	Req :: cowmachine_cowreq:req(), 
 	Env :: cowboy_middleware:env(),
 	Result :: cowboy_middleware:env().
 update_env(Req, Env) ->
-    case cowboy_req:header(<<"forwarded">>, Req) of
+    case cowmachine_cowreq:header(<<"forwarded">>, Req) of
         undefined ->
-            case cowboy_req:header(<<"x-forwarded-for">>, Req) of
+            case cowmachine_cowreq:header(<<"x-forwarded-for">>, Req) of
                 undefined ->
                     update_env_direct(Req, Env);
                 XForwardedFor ->
@@ -65,16 +65,16 @@ update_env(Req, Env) ->
 %% @doc Fetch the metadata from the request itself.
 
 -spec update_env_direct(Req, Env) -> Result when
-	Req :: cowboy_req:req(), 
+	Req :: cowmachine_cowreq:req(), 
 	Env :: cowboy_middleware:env(),
 	Result :: cowboy_middleware:env().	
 update_env_direct(Req, Env) ->
-    {Peer, _Port} = cowboy_req:peer(Req),
+    {Peer, _Port} = cowmachine_cowreq:peer(Req),
     Env#{
         cowmachine_proxy => false,
         cowmachine_forwarded_host => parse_host(maps:get(host, Req)),
-        cowmachine_forwarded_port => cowboy_req:port(Req),
-        cowmachine_forwarded_proto => cowboy_req:scheme(Req),
+        cowmachine_forwarded_port => cowmachine_cowreq:port(Req),
+        cowmachine_forwarded_proto => cowmachine_cowreq:scheme(Req),
         cowmachine_remote_ip => Peer,
         cowmachine_remote => list_to_binary(inet_parse:ntoa(Peer))
     }.
@@ -83,11 +83,11 @@ update_env_direct(Req, Env) ->
 
 -spec update_env_proxy(Forwarded, Req, Env) -> Result when
 	Forwarded :: binary(), 
-	Req :: cowboy_req:req(), 
+	Req :: cowmachine_cowreq:req(), 
 	Env :: cowboy_middleware:env(),
 	Result :: cowboy_middleware:env().	
 update_env_proxy(Forwarded, Req, Env) ->
-    {Peer, _Port} = cowboy_req:peer(Req),
+    {Peer, _Port} = cowmachine_cowreq:peer(Req),
     case is_trusted_proxy(Peer) of
         true ->
             Props = parse_forwarded(Forwarded),
@@ -99,7 +99,7 @@ update_env_proxy(Forwarded, Req, Env) ->
                      end,
             Proto = proplists:get_value(<<"proto">>, Props, <<"http">>),
             Host = case proplists:get_value(<<"host">>, Props) of
-                        undefined -> cowboy_req:header(<<"host">>, Req);
+                        undefined -> cowmachine_cowreq:header(<<"host">>, Req);
                         XHost -> XHost
                    end,
             Port = case proplists:get_value(<<"port">>, Props) of
@@ -129,20 +129,20 @@ update_env_proxy(Forwarded, Req, Env) ->
 %% @doc Handle the `X-Forwarded-For' header, added by the proxy.
 
 update_env_old_proxy(XForwardedFor, Req, Env) ->
-    {Peer, _Port} = cowboy_req:peer(Req),
+    {Peer, _Port} = cowmachine_cowreq:peer(Req),
     case is_trusted_proxy(Peer) of
         true ->
             FwdFor = z_string:trim(lists:last(binary:split(XForwardedFor, <<",">>, [global]))),
             {Remote, RemoteAdr} = parse_for(FwdFor, Req),
-            Proto = case trim(cowboy_req:header(<<"x-forwarded-proto">>, Req)) of
+            Proto = case trim(cowmachine_cowreq:header(<<"x-forwarded-proto">>, Req)) of
                         undefined -> <<"http">>;
                         XProto -> XProto
                     end,
-            Host = case cowboy_req:header(<<"x-forwarded-host">>, Req) of
-                        undefined -> cowboy_req:header(<<"host">>, Req);
+            Host = case cowmachine_cowreq:header(<<"x-forwarded-host">>, Req) of
+                        undefined -> cowmachine_cowreq:header(<<"host">>, Req);
                         XHost -> XHost
                    end,
-            Port = case cowboy_req:header(<<"x-forwarded-port">>, Req) of
+            Port = case cowmachine_cowreq:header(<<"x-forwarded-port">>, Req) of
                         undefined ->
                             case Proto of
                                 <<"https">> -> 443;
@@ -185,12 +185,12 @@ parse_host(Host) ->
 
 -spec parse_for(For, Req) -> Result when
 	For :: undefined | binary(),
-	Req :: cowboy_req:req(),
+	Req :: cowmachine_cowreq:req(),
 	Result :: {Adr, Host},
 	Adr :: inet:ip_address(),
 	Host :: binary().
 parse_for(undefined, Req) ->
-    {Peer, _Port} = cowboy_req:peer(Req),
+    {Peer, _Port} = cowmachine_cowreq:peer(Req),
     {Peer, list_to_binary(inet_parse:ntoa(Peer))};
 parse_for(<<$[, Rest/binary>>, _Req) ->
     IP6 = hd(binary:split(Rest, <<"]">>)),
@@ -202,7 +202,7 @@ parse_for(For, Req) ->
             {Adr, For};
         {error, _} -> 
             % Not an IP address, take the Proxy address
-            {Peer, _Port} = cowboy_req:peer(Req),
+            {Peer, _Port} = cowmachine_cowreq:peer(Req),
             {Peer, sanitize(For)}
     end.
 

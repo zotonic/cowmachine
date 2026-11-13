@@ -33,9 +33,13 @@
     port/1,
 
     reply/4,
+    inform/3,
     stream_reply/3,
     stream_body/3,
+    stream_trailers/2,
     read_body/2,
+    read_part/2,
+    read_part_body/2,
     set_options/2,
     websocket_upgrade/5
 ]).
@@ -96,6 +100,11 @@ reply(Status, Headers, Body, Req) ->
     cowboy_req:reply(Status, Headers, Body, Req).
 
 %% @private
+-spec inform(cowboy:http_status(), cowboy:http_headers(), cowboy_req:req()) -> ok.
+inform(Status, Headers, Req) ->
+    cowboy_req:inform(Status, Headers, Req).
+
+%% @private
 -spec stream_reply(cowboy:http_status(), cowboy:http_headers(), Req) -> Req
     when Req :: cowboy_req:req().
 stream_reply(Status, Headers, Req) ->
@@ -107,13 +116,30 @@ stream_body(Data, IsFin, Req) ->
     cowboy_req:stream_body(Data, IsFin, Req).
 
 %% @private
+-spec stream_trailers(cowboy:http_headers(), cowboy_req:req()) -> ok.
+stream_trailers(Trailers, Req) ->
+    cowboy_req:stream_trailers(Trailers, Req).
+
+%% @private
 -spec read_body(Req, cowboy_req:read_body_opts()) -> {ok, binary(), Req} | {more, binary(), Req}
     when Req :: cowboy_req:req().
 read_body(Req, Opts) ->
     cowboy_req:read_body(Req, Opts).
 
 %% @private
--spec set_options(cowmachine_server:request_opts(), cowboy_req:req()) -> ok.
+-spec read_part(Req, cowboy_req:read_body_opts()) -> {ok, cowboy:http_headers(), Req} | {done, Req}
+    when Req :: cowboy_req:req().
+read_part(Req, Opts) ->
+    cowboy_req:read_part(Req, Opts).
+
+%% @private
+-spec read_part_body(Req, cowboy_req:read_body_opts()) ->
+    {ok, binary(), Req} | {more, binary(), Req} when Req :: cowboy_req:req().
+read_part_body(Req, Opts) ->
+    cowboy_req:read_part_body(Req, Opts).
+
+%% @private
+-spec set_options(cowmachine_cowreq:request_opts(), cowboy_req:req()) -> ok.
 set_options(Opts, Req) ->
     cowboy_req:cast({set_options, Opts}, Req).
 

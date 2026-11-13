@@ -110,8 +110,8 @@ tls_test() ->
 %% The middleware: reply with the environment's body, with the metrics' user
 %% data set first.
 execute(Req, #{ body := Body }) ->
-    ok = cowmachine_server:set_options(#{ metrics_user_data => #{ site => test } }, Req),
-    {stop, cowmachine_server:reply(200, #{}, Body, Req)}.
+    ok = cowmachine_cowreq:set_options(#{ metrics_user_data => #{ site => test } }, Req),
+    {stop, cowmachine_cowreq:reply(200, #{}, Body, Req)}.
 
 rsa() ->
     [{key, {rsa, 2048, 65537}}].

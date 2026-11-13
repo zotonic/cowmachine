@@ -27,34 +27,6 @@ module_test() ->
         application:unset_env(cowmachine, server)
     end.
 
-reply_test() ->
-    Req = req(),
-    ?assertMatch(#{ has_sent_resp := true },
-                 cowmachine_server:reply(200, #{ <<"a">> => <<"b">> }, [<<"x">>, "y"], Req)),
-    ?assertEqual({reply, 200, #{ <<"a">> => <<"b">> }, <<"xy">>}, call()).
-
-reply_with_resp_body_test() ->
-    %% As cowboy_req:reply/2: the body set on the request.
-    _ = cowmachine_server:reply(404, (req())#{ resp_body => <<"gone">> }),
-    ?assertEqual({reply, 404, #{}, <<"gone">>}, call()),
-    _ = cowmachine_server:reply(204, req()),
-    ?assertEqual({reply, 204, #{}, <<>>}, call()).
-
-stream_test() ->
-    Req = cowmachine_server:stream_reply(200, #{}, req()),
-    ?assertEqual({stream_reply, 200, #{}}, call()),
-    ok = cowmachine_server:stream_body(<<"part">>, nofin, Req),
-    ?assertEqual({stream_body, <<"part">>, nofin}, call()).
-
-read_body_test() ->
-    Req = req(),
-    ?assertEqual({ok, <<"body">>, Req}, cowmachine_server:read_body(Req, #{ length => 10 })),
-    ?assertEqual({read_body, #{ length => 10 }}, call()).
-
-set_options_test() ->
-    ok = cowmachine_server:set_options(#{ idle_timeout => infinity }, req()),
-    ?assertEqual({set_options, #{ idle_timeout => infinity }}, call()).
-
 websocket_upgrade_test() ->
     Req = req(),
     ?assertEqual({ok, Req, #{ e => 1 }},
