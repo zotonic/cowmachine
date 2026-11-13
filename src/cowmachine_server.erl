@@ -48,7 +48,9 @@
 %%     `resp_status', `resp_body_length' and `user_data' keys.
 %%     `metrics_req_filter' and `metrics_resp_headers_filter' trim the
 %%     request and the response headers it carries.</li>
-%% <li>`options': the server's own options.</li>
+%% <li>`options': the server's own options. A server may let them set what
+%%     the shared keys set too, as Cowboy's protocol options do, so leave
+%%     `middlewares', `env', `request_timeout' and the metrics out of them.</li>
 %% </ul>
 %%
 %% == The request map ==
@@ -223,32 +225,49 @@ of_req(#{ cowmachine_server := Server }) -> Server;
 of_req(_Req) -> cowmachine_server_cowboy.
 
 %% @doc Start a listener named `Ref' on the configured server (`module/0').
+%% The listener's other functions go to the server that started it, even when
+%% the configured server changes later.
 -spec start_listener(listener_ref(), listener_opts()) -> {ok, pid()} | {error, term()}.
 start_listener(Ref, Opts) ->
-    (module()):start_listener(Ref, Opts).
+    Server = module(),
+    case Server:start_listener(Ref, Opts) of
+        {ok, _} = Ok ->
+            persistent_term:put({?MODULE, Ref}, Server),
+            Ok;
+        {error, _} = Error ->
+            Error
+    end.
 
-%% @doc Stop the listener named `Ref' on the configured server (`module/0').
+%% @doc Stop the listener named `Ref'.
 -spec stop_listener(listener_ref()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
-    (module()):stop_listener(Ref).
+    Result = (server(Ref)):stop_listener(Ref),
+    _ = persistent_term:erase({?MODULE, Ref}),
+    Result.
 
-%% @doc The port the listener named `Ref' is bound to, on the configured
-%% server (`module/0'). For a listener started on port `0' it is the one the
-%% operating system picked.
+%% @doc The port the listener named `Ref' is bound to. For a listener started
+%% on port `0' it is the one the operating system picked.
 -spec port(listener_ref()) -> inet:port_number().
 port(Ref) ->
-    (module()):port(Ref).
+    (server(Ref)):port(Ref).
 
-%% @doc What the listener named `Ref' on the configured server (`module/0')
-%% reports about itself, or `{error, not_found}' when there is no such
-%% listener.
+%% @doc What the listener named `Ref' reports about itself, or
+%% `{error, not_found}' when there is no such listener.
 -spec info(listener_ref()) -> {ok, listener_info()} | {error, not_found}.
 info(Ref) ->
-    (module()):info(Ref).
+    (server(Ref)):info(Ref).
+
+%% The server that started a listener, or the configured one for a listener
+%% `start_listener/2' did not start.
+-spec server(listener_ref()) -> module().
+server(Ref) ->
+    persistent_term:get({?MODULE, Ref}, module()).
 
 %% @doc Run a request through `Middlewares', each a `cowboy_middleware', in
 %% order, until one stops or the last returns. A server without middlewares of
-%% its own runs a listener's `middlewares' with it.
+%% its own runs a listener's `middlewares' with it. A middleware may not
+%% return `{suspend, Module, Function, Args}', which only Cowboy's own
+%% middleware loop supports.
 -spec execute(Req, Env, Middlewares) -> {ok, Req, Env} | {stop, Req}
     when Req :: cowboy_req:req(),
          Env :: cowboy_middleware:env(),

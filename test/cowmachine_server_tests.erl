@@ -28,6 +28,25 @@ module_test() ->
         application:unset_env(cowmachine, server)
     end.
 
+%% A listener's functions go to the server that started it, whatever the
+%% configured server is when they are called.
+listener_server_test() ->
+    {ok, _} = application:ensure_all_started(cowmachine),
+    {ok, _} = cowmachine_server:start_listener(server_listener, #{
+        port => 0, middlewares => []
+    }),
+    application:set_env(cowmachine, server, cowmachine_fake_server),
+    try
+        Port = cowmachine_server:port(server_listener),
+        ?assertNotEqual(1234, Port),
+        ?assertMatch({ok, #{ port := Port }}, cowmachine_server:info(server_listener)),
+        ?assertEqual(ok, cowmachine_server:stop_listener(server_listener)),
+        %% Once stopped, the configured server answers for that name.
+        ?assertEqual({error, not_found}, cowmachine_server:info(server_listener))
+    after
+        application:unset_env(cowmachine, server)
+    end.
+
 websocket_upgrade_test() ->
     Req = req(),
     ?assertEqual({ok, Req, #{ e => 1 }},
