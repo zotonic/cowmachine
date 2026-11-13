@@ -15,9 +15,10 @@
 %% work the same for every server. Those that touch the connection (sending a
 %% response, reading the body) are done by the server serving the request.
 %%
-%% It has `cowboy_req''s functions except `push/3,4' (HTTP/2 server push)
-%% and `cast/2', which sends Cowboy's stream handlers any message:
-%% `set_options/2' does what cowmachine casts, as
+%% It has `cowboy_req''s functions except `push/3,4' (HTTP/2 server push),
+%% `parse_qs/2' and `match_qs/3', which only Cowboy releases newer than the
+%% one cowmachine requires have, and `cast/2', which sends Cowboy's stream
+%% handlers any message: `set_options/2' does what cowmachine casts, as
 %% `cowboy_req:cast({set_options, Opts}, Req)' did.
 %%
 %% ```
