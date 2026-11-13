@@ -1,7 +1,9 @@
 %% @author Marc Worrell <marc@worrell.nl>
 %% @copyright 2016-2019 Marc Worrell
 %%
-%% @doc Request functions for cowmachine.
+%% @doc Request functions for cowmachine. They work on a controller's
+%% `Context', which wraps the raw request; `cowmachine_cowreq' works on the
+%% raw request (the cowreq) itself.
 %% @reference See more information related to Cowboy HTTP server for Erlang/OTP at 
 %% <a href="https://github.com/ninenines/cowboy">Cowboy</a>.
 %% @end
@@ -115,7 +117,7 @@
 
 
 -type context_map() :: #{
-    cowreq := cowboy_req:req(),
+    cowreq := cowmachine_cowreq:req(),
     cowenv := cowboy_middleware:env(),
     any() => any()
 }.
@@ -193,7 +195,7 @@
 %% @doc Set some intial metadata in the cowboy req.
 
 -spec init_env(Req, Env) -> Result when
-	Req :: cowboy_req:req(), 
+	Req :: cowmachine_cowreq:req(), 
 	Env :: cowboy_middleware:env(), 
 	Result :: cowboy_middleware:env().
 init_env(Req, Env) ->
@@ -220,11 +222,11 @@ init_env(Req, Env) ->
         cowmachine_disp_path => maps:get('*', Bindings, undefined),
         cowmachine_range_ok => true,
 
-        cowmachine_cookies => cowboy_req:parse_cookies(Req)
+        cowmachine_cookies => cowmachine_cowreq:parse_cookies(Req)
     }.
 
 -spec ensure_proxy_args(Req, Env) -> Result when
-	Req :: cowboy_req:req(), 
+	Req :: cowmachine_cowreq:req(), 
 	Env :: cowboy_middleware:env(), 
 	Result :: cowboy_middleware:env().
 ensure_proxy_args(Req, Env) ->
@@ -236,7 +238,7 @@ ensure_proxy_args(Req, Env) ->
 %% @doc Initialize the context with the `Req' and `Env'.
 
 -spec init_context(Req, Env, Options) -> Result when
-	Req :: cowboy_req:req(),
+	Req :: cowmachine_cowreq:req(),
 	Env :: cowboy_middleware:env(),
 	Options :: undefined | map() | tuple(),
 	Result :: context().
@@ -251,7 +253,7 @@ init_context( Req, Env, Tuple) when is_tuple(Tuple) ->
 %% @doc Update the cowboy request in the context.
 
 -spec set_req(Req, Context) -> Result when
-	Req :: cowboy_req:req(),
+	Req :: cowmachine_cowreq:req(),
 	Context :: context(),
 	Result :: context().
 set_req(Req, Context) when is_tuple(Context) ->
@@ -263,7 +265,7 @@ set_req(Req, #{ cowreq := _ } = Map) ->
 
 -spec req(Context) -> Result when
 	Context :: context(),
-	Result :: cowboy_req:req().
+	Result :: cowmachine_cowreq:req().
 req(Context) when is_tuple(Context) ->
     erlang:element(2, Context);
 req(#{ cowreq := Req }) ->
@@ -320,7 +322,7 @@ site(Context) ->
 	Context :: context(),
 	Result :: binary().
 method(Context) ->
-    cowboy_req:method(req(Context)).
+    cowmachine_cowreq:method(req(Context)).
 
 %% @doc Return the http version as a tuple `{major, minor}'.
 
@@ -330,7 +332,7 @@ method(Context) ->
 	Major :: integer(), 
 	Minor :: integer().
 version(Context) ->
-    case cowboy_req:version(req(Context)) of
+    case cowmachine_cowreq:version(req(Context)) of
         'HTTP/1.0' -> {1,0};
         'HTTP/1.1' -> {1,1};
         'HTTP/2'   -> {2,0}
@@ -424,7 +426,7 @@ peer_ip(Context) ->
 	Context :: context(),
 	Result :: binary().
 raw_path(Context) ->
-    Path = cowboy_req:path(req(Context)),
+    Path = cowmachine_cowreq:path(req(Context)),
     case qs(Context) of
         <<>> -> Path;
         Qs -> <<Path/binary, $?, Qs/binary>>
@@ -436,7 +438,7 @@ raw_path(Context) ->
 	Context :: context(),
 	Result :: binary().
 path(Context) ->
-    cowboy_req:path(req(Context)).
+    cowmachine_cowreq:path(req(Context)).
 
 %% @doc Return the undecoded query string, `<<>>' when no query string.
 
@@ -444,7 +446,7 @@ path(Context) ->
 	Context :: context(),
 	Result :: binary().
 qs(Context) ->
-    cowboy_req:qs(req(Context)).
+    cowmachine_cowreq:qs(req(Context)).
 
 %% @doc Return the decoded query string, `[]' when no query string.
 
@@ -470,7 +472,7 @@ path_info(Context) ->
 	Context :: context(),
 	Result :: undefined | binary().
 get_req_header(H, Context) when is_binary(H) ->
-    cowboy_req:header(H, req(Context)).
+    cowmachine_cowreq:header(H, req(Context)).
 
 %% @doc Fetch all request headers.
 
@@ -478,7 +480,7 @@ get_req_header(H, Context) when is_binary(H) ->
 	Context :: context(),
 	Result :: #{ binary() => binary() }.
 get_req_headers(Context) ->
-    cowboy_req:headers(req(Context)).
+    cowmachine_cowreq:headers(req(Context)).
 
 %% @doc Set the content type of the response
 
@@ -549,7 +551,7 @@ set_resp_header_1(Header, Value, Context) ->
     V = z_convert:to_binary(Value),
     case cowmachine_util:is_valid_header(Header) andalso cowmachine_util:is_valid_header_value(V) of
         true ->
-            Req = cowboy_req:set_resp_header(Header, z_convert:to_binary(Value), req(Context)),
+            Req = cowmachine_cowreq:set_resp_header(Header, z_convert:to_binary(Value), req(Context)),
             set_req(Req, Context);
         false ->
             throw({http_invalid_header, Header, V})
@@ -592,7 +594,7 @@ get_resp_headers(Context) ->
 	Context :: context(),
 	Result :: context().
 remove_resp_header(Header, Context) when is_binary(Header) ->
-    Req = cowboy_req:delete_resp_header(Header, req(Context)),
+    Req = cowmachine_cowreq:delete_resp_header(Header, req(Context)),
     set_req(Req, Context).
 
 %% @doc Add a cookie to the response cookies.
@@ -605,7 +607,7 @@ remove_resp_header(Header, Context) when is_binary(Header) ->
 	Result :: context().
 set_resp_cookie(Key, Value, Options, Context) when is_binary(Key), is_binary(Value) ->
     Options1 = [ {K,V} || {K,V} <- Options, V =/= undefined ],
-    Req = cowboy_req:set_resp_cookie(Key, Value, req(Context), maps:from_list(Options1)),
+    Req = cowmachine_cowreq:set_resp_cookie(Key, Value, req(Context), maps:from_list(Options1)),
     set_req(Req, Context).
 
 %% @doc Fetch all response cookies.
@@ -800,7 +802,7 @@ has_resp_body(Context) ->
 	Context :: context(),
 	Result :: boolean().
 has_req_body(Context) ->
-    cowboy_req:has_body(req(Context)).
+    cowmachine_cowreq:has_body(req(Context)).
 
 %% @doc Fetch the request body as a single binary.<br/>
 %% Per default we don't receive more than `~128K' bytes.
@@ -822,7 +824,7 @@ req_body(MaxLength, Context) when MaxLength > 0 ->
         length => MaxLength,
         timeout => 10000
     },
-    case cowboy_req:read_body(Req, Opts) of
+    case cowmachine_cowreq:read_body(Req, Opts) of
         {ok, Body, Req2} ->
             {Body, set_req(Req2, Context)};
         {more, _Body, Req2} ->
@@ -845,7 +847,7 @@ stream_req_body(ChunkSize, Context) ->
         length => ChunkSize,
         timeout => 10000
     },
-    {Next, Chunk, Req1} = cowboy_req:read_body(req(Context), Opts),
+    {Next, Chunk, Req1} = cowmachine_cowreq:read_body(req(Context), Opts),
     {Next, Chunk, set_req(Req1, Context)}.
 
 

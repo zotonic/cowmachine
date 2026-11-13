@@ -1,0 +1,288 @@
+%% @author William Fank Thomé
+%% @copyright 2026 William Fank Thomé
+%% @doc The HTTP server cowmachine runs on.
+%%
+%% Cowmachine runs on Cowboy by default (`cowmachine_server_cowboy'). Another
+%% server plugs in through this behaviour: set the `server' key of the
+%% `cowmachine' application's environment to the module that implements it.
+%%
+%% ```
+%% {cowmachine, [
+%%     {server, my_server}
+%% ]}
+%% '''
+%%
+%% A server module does three things:
+%%
+%% <ul>
+%% <li>It starts and stops listeners from the options `start_listener/2'
+%%     takes, described below. The shared keys mean the same for every
+%%     server, and `options' holds the server's own.</li>
+%% <li>It runs the listener's middlewares on each request, with `execute/3'
+%%     when the server has no middlewares of its own, handing them a request
+%%     map shaped like Cowboy's, described below.</li>
+%% <li>It does what touches the connection: sending responses, reading the
+%%     body, changing the connection's options and upgrading to a WebSocket.
+%%     `cowmachine_cowreq' and `websocket_upgrade/5' call these callbacks for
+%%     the server in the request's `cowmachine_server' key, and Cowboy's when
+%%     the key is absent.</li>
+%% </ul>
+%%
+%% == The listener options ==
+%%
+%% <ul>
+%% <li>`port': the port to bind, `0' for any free one (see `port/1').</li>
+%% <li>`ip': the address to bind, every IPv4 interface when absent. An IPv6
+%%     address binds IPv6, and `ipv6_v6only' then says whether IPv4 clients
+%%     are served too (the operating system decides when absent).</li>
+%% <li>`tls': the `ssl' server options, for an HTTPS listener. Without it the
+%%     listener serves plain HTTP.</li>
+%% <li>`backlog', `max_connections' and `num_acceptors': the listen backlog,
+%%     the most open connections and the number of accepting processes.</li>
+%% <li>`request_timeout': milliseconds to wait for a request.</li>
+%% <li>`middlewares': the `cowboy_middleware' modules each request runs
+%%     through, in order, and `env' the environment they start with.</li>
+%% <li>`metrics_callback': called once per request with the map Cowboy's
+%%     `cowboy_metrics_h' builds, at least its `reason', `req', `req_start',
+%%     `req_end', `req_body_length', `req_body_end', `resp_start',
+%%     `resp_status', `resp_body_length' and `user_data' keys.
+%%     `metrics_req_filter' and `metrics_resp_headers_filter' trim the
+%%     request and the response headers it carries.</li>
+%% <li>`options': the server's own options. A server may let them set what
+%%     the shared keys set too, as Cowboy's protocol options do, so leave
+%%     `middlewares', `env', `request_timeout' and the metrics out of them.</li>
+%% </ul>
+%%
+%% == The request map ==
+%%
+%% `cowmachine_cowreq' reads and sets fields of the request map the way
+%% `cowboy_req' does, so a server's map carries the keys and value types of
+%% Cowboy's:
+%%
+%% <ul>
+%% <li>`cowmachine_server': the server module</li>
+%% <li>`method' (`<<"GET">>'), `version' (an atom, `` 'HTTP/1.1' ''),
+%%     `scheme' (`<<"http">>' or `<<"https">>'), `host', `port', `path' and
+%%     `qs' (the raw query string)</li>
+%% <li>`headers': a map of lowercase names to values, repeated headers joined
+%%     with `, ' (`; ' for `cookie')</li>
+%% <li>`peer' (`{IP, Port}'), and `sock' and `cert' when the server has
+%%     them</li>
+%% <li>`has_body' (a boolean) and `body_length' (an integer, or `undefined'
+%%     when unknown)</li>
+%% </ul>
+%%
+%% `cowmachine_cowreq''s setters add the response keys: `resp_headers' (a map),
+%% `resp_cookies' (a map of names to complete `set-cookie' values) and
+%% `resp_body'.
+%%
+%% == The request callbacks ==
+%%
+%% They take and return what the `cowboy_req' functions of the same name do,
+%% so code written against `cowmachine_cowreq' runs on any server:
+%%
+%% <ul>
+%% <li>`reply/4' sends `resp_headers' and every `resp_cookies' value as
+%%     `set-cookie' along with the call's headers (which win). It returns the
+%%     request without the `resp_*' keys and with `has_sent_resp' set. A
+%%     `204' or `304' response, or a reply to a `HEAD' request, has no
+%%     body.</li>
+%% <li>`read_body/2', `read_part/2' and `read_part_body/2' take Cowboy's
+%%     options (`length', `period', `timeout') and exit with
+%%     `{request_error, Reason, Message}' when the body can't be read, as
+%%     Cowboy does. `read_part/2' returns the part's headers as a map.</li>
+%% <li>`set_options/2' takes the options cowmachine changes while it serves a
+%%     request: `idle_timeout' (`infinity' while it streams a response) and
+%%     `metrics_user_data' (merged into the `user_data' of the request's
+%%     metrics). A server ignores those it has no counterpart for.</li>
+%% <li>`websocket_upgrade/5' takes what `cowboy_websocket:upgrade/5' does,
+%%     and runs `Handler''s `cowboy_websocket' callbacks the way Cowboy
+%%     does.</li>
+%% </ul>
+%% @end
+
+%% Copyright 2026 William Fank Thomé
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+
+-module(cowmachine_server).
+
+-export([
+    module/0,
+    of_req/1,
+
+    start_listener/2,
+    stop_listener/1,
+    port/1,
+    info/1,
+
+    execute/3,
+
+    websocket_upgrade/5
+]).
+
+-export_type([
+    listener_ref/0,
+    listener_opts/0,
+    listener_info/0
+]).
+
+-type listener_ref() :: ranch:ref().
+%% The name of a listener.
+
+-type listener_opts() :: #{
+    port := inet:port_number(),
+    ip => inet:ip_address(),
+    ipv6_v6only => boolean(),
+    tls => [ssl:tls_server_option()],
+    backlog => pos_integer(),
+    max_connections => pos_integer() | infinity,
+    num_acceptors => pos_integer(),
+    request_timeout => timeout(),
+    middlewares := [module()],
+    env => cowboy_middleware:env(),
+    metrics_callback => fun((map()) -> any()),
+    metrics_req_filter => fun((cowboy_req:req()) -> map()),
+    metrics_resp_headers_filter => fun((cowboy:http_headers()) -> cowboy:http_headers()),
+    options => map()
+}.
+%% A listener's options, described in the module documentation.
+
+-type listener_info() :: #{
+    status := running | suspended,
+    ip => inet:ip_address(),
+    port := inet:port_number(),
+    active_connections := non_neg_integer(),
+    all_connections := non_neg_integer(),
+    max_connections := non_neg_integer() | infinity
+}.
+%% What `info/1' reports about a listener: whether it accepts connections
+%% (`running') or not (`suspended', such as while it drains), the address it
+%% is bound to when the server knows it, its port, the connections it serves
+%% and its limit.
+
+%% Listeners
+
+-callback start_listener(Ref :: listener_ref(), Opts :: listener_opts()) ->
+    {ok, pid()} | {error, term()}.
+
+-callback stop_listener(Ref :: listener_ref()) -> ok | {error, not_found}.
+
+-callback port(Ref :: listener_ref()) -> inet:port_number().
+
+-callback info(Ref :: listener_ref()) -> {ok, listener_info()} | {error, not_found}.
+
+%% Requests
+
+-callback reply(Status :: cowboy:http_status(), Headers :: cowboy:http_headers(),
+                Body :: cowboy_req:resp_body(), Req) -> Req when Req :: cowboy_req:req().
+
+-callback inform(Status :: cowboy:http_status(), Headers :: cowboy:http_headers(),
+                 Req :: cowboy_req:req()) -> ok.
+
+-callback stream_reply(Status :: cowboy:http_status(), Headers :: cowboy:http_headers(), Req) ->
+    Req when Req :: cowboy_req:req().
+
+-callback stream_body(Data :: iodata(), IsFin :: fin | nofin, Req :: cowboy_req:req()) -> ok.
+
+-callback stream_trailers(Trailers :: cowboy:http_headers(), Req :: cowboy_req:req()) -> ok.
+
+-callback read_body(Req, Opts :: cowboy_req:read_body_opts()) ->
+    {ok, binary(), Req} | {more, binary(), Req} when Req :: cowboy_req:req().
+
+-callback read_part(Req, Opts :: cowboy_req:read_body_opts()) ->
+    {ok, cowboy:http_headers(), Req} | {done, Req} when Req :: cowboy_req:req().
+
+-callback read_part_body(Req, Opts :: cowboy_req:read_body_opts()) ->
+    {ok, binary(), Req} | {more, binary(), Req} when Req :: cowboy_req:req().
+
+-callback set_options(Opts :: cowmachine_cowreq:request_opts(), Req :: cowboy_req:req()) -> ok.
+
+-callback websocket_upgrade(Req, Env, Handler :: module(), State :: term(),
+                            Opts :: cowboy_websocket:opts()) ->
+    {ok, Req, Env} when Req :: cowboy_req:req(), Env :: cowboy_middleware:env().
+
+
+%% @doc The server module the `cowmachine' application's environment names,
+%% `cowmachine_server_cowboy' by default.
+-spec module() -> module().
+module() ->
+    application:get_env(cowmachine, server, cowmachine_server_cowboy).
+
+%% @doc The server module serving a request.
+-spec of_req(cowboy_req:req()) -> module().
+of_req(#{ cowmachine_server := Server }) -> Server;
+of_req(_Req) -> cowmachine_server_cowboy.
+
+%% @doc Start a listener named `Ref' on the configured server (`module/0').
+%% The listener's other functions go to the server that started it, even when
+%% the configured server changes later.
+-spec start_listener(listener_ref(), listener_opts()) -> {ok, pid()} | {error, term()}.
+start_listener(Ref, Opts) ->
+    Server = module(),
+    case Server:start_listener(Ref, Opts) of
+        {ok, _} = Ok ->
+            persistent_term:put({?MODULE, Ref}, Server),
+            Ok;
+        {error, _} = Error ->
+            Error
+    end.
+
+%% @doc Stop the listener named `Ref'.
+-spec stop_listener(listener_ref()) -> ok | {error, not_found}.
+stop_listener(Ref) ->
+    Result = (server(Ref)):stop_listener(Ref),
+    _ = persistent_term:erase({?MODULE, Ref}),
+    Result.
+
+%% @doc The port the listener named `Ref' is bound to. For a listener started
+%% on port `0' it is the one the operating system picked.
+-spec port(listener_ref()) -> inet:port_number().
+port(Ref) ->
+    (server(Ref)):port(Ref).
+
+%% @doc What the listener named `Ref' reports about itself, or
+%% `{error, not_found}' when there is no such listener.
+-spec info(listener_ref()) -> {ok, listener_info()} | {error, not_found}.
+info(Ref) ->
+    (server(Ref)):info(Ref).
+
+%% The server that started a listener, or the configured one for a listener
+%% `start_listener/2' did not start.
+-spec server(listener_ref()) -> module().
+server(Ref) ->
+    persistent_term:get({?MODULE, Ref}, module()).
+
+%% @doc Run a request through `Middlewares', each a `cowboy_middleware', in
+%% order, until one stops or the last returns. A server without middlewares of
+%% its own runs a listener's `middlewares' with it. A middleware may not
+%% return `{suspend, Module, Function, Args}', which only Cowboy's own
+%% middleware loop supports.
+-spec execute(Req, Env, Middlewares) -> {ok, Req, Env} | {stop, Req}
+    when Req :: cowboy_req:req(),
+         Env :: cowboy_middleware:env(),
+         Middlewares :: [module()].
+execute(Req, Env, []) ->
+    {ok, Req, Env};
+execute(Req, Env, [Middleware | Rest]) ->
+    case Middleware:execute(Req, Env) of
+        {ok, Req1, Env1} -> execute(Req1, Env1, Rest);
+        {stop, Req1} -> {stop, Req1}
+    end.
+
+%% @doc Upgrade the request to a WebSocket running `Handler''s
+%% `cowboy_websocket' callbacks, as `cowboy_websocket:upgrade/5' does.
+-spec websocket_upgrade(Req, Env, module(), term(), cowboy_websocket:opts()) -> {ok, Req, Env}
+    when Req :: cowboy_req:req(), Env :: cowboy_middleware:env().
+websocket_upgrade(Req, Env, Handler, State, Opts) ->
+    (of_req(Req)):websocket_upgrade(Req, Env, Handler, State, Opts).

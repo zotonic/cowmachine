@@ -9,7 +9,7 @@
 -spec upgrade(Handler, Context) -> Result when
 	Handler :: atom(), 
 	Context :: cowmachine_req:context(),
-	Result :: {ok, cowboy_req:req(), cowboy_middleware:env()}.
+	Result :: {ok, cowmachine_cowreq:req(), cowboy_middleware:env()}.
 upgrade(Handler, Context) ->
     Req = cowmachine_req:req(Context),
     Env = cowmachine_req:env(Context),
@@ -21,7 +21,7 @@ upgrade(Handler, Context) ->
     % the module will be loaded.
     {module, Handler} = code:ensure_loaded(Handler),
 
-    cowboy_websocket:upgrade(Req, Env, Handler, Context, Opts).
+    cowmachine_server:websocket_upgrade(Req, Env, Handler, Context, Opts).
 
 % Reasonably safe websocket config.
 ws_opts(Context) ->

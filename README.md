@@ -97,6 +97,48 @@ Or just use the default Cowmachine middleware:
     }.
 ```
 
+## Starting a listener
+
+`cowmachine_server:start_listener/2` starts a listener that runs its
+middlewares on each request:
+
+```erlang
+{ok, _} = cowmachine_server:start_listener(my_listener, #{
+    port => 8000,
+    middlewares => [
+        % ... add your dispatcher middleware
+        cowmachine
+    ],
+    request_timeout => 60000,
+    env => #{
+        cowmachine_controller => mycontroller
+    }
+}).
+```
+
+Add `tls` with the `ssl` server options for HTTPS. `cowmachine_server`
+describes all the options.
+
+## Running on another HTTP server
+
+Cowmachine runs on Cowboy by default. Another HTTP server can be used by
+setting the `server` key of the `cowmachine` application's environment to a
+module that implements the `cowmachine_server` behaviour:
+
+```erlang
+{cowmachine, [
+    {server, my_server}
+]}
+```
+
+Listeners started with `cowmachine_server:start_listener/2` then run on that
+server, and Cowmachine sends responses and reads request bodies through it.
+
+Middlewares get a request map shaped like Cowboy's on every server. Read and
+answer it with `cowmachine_cowreq`, which has the same functions as
+`cowboy_req`, and they run unchanged on any server. Code that calls
+`cowboy_req` to send a response or read the body runs on Cowboy only.
+
 ## Dispatching
 
 You can use the [Zotonic Dispatch Compiler](https://github.com/zotonic/dispatch_compiler) to match your controller paths against the request.
