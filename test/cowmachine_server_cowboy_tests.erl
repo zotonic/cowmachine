@@ -104,11 +104,42 @@ info_test() ->
             active_connections => 0,
             all_connections => 0,
             max_connections => 10
-        }}, cowmachine_server_cowboy:info(cowboy_info))
+        }}, cowmachine_server_cowboy:info(cowboy_info)),
+        %% An open connection is counted.
+        {ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, Port, [binary, {active, false}], 5000),
+        ok = wait_for_connections(cowboy_info, 1),
+        ok = gen_tcp:close(Socket)
     after
         ok = cowmachine_server_cowboy:stop_listener(cowboy_info)
     end,
     ?assertEqual({error, not_found}, cowmachine_server_cowboy:info(cowboy_gone)).
+
+%% `cowmachine_cowreq''s own versions of Cowboy functions that would read the
+%% body or send around the server answer as Cowboy's do.
+cowboy_equivalence_test() ->
+    {ok, _} = application:ensure_all_started(cowmachine),
+    {ok, _} = cowmachine_server_cowboy:start_listener(cowboy_equivalence, #{
+        port => 0,
+        middlewares => [?MODULE],
+        env => #{ equivalence => true }
+    }),
+    try
+        Port = cowmachine_server_cowboy:port(cowboy_equivalence),
+        Cases = [
+            {<<"POST">>, <<"urlencoded">>, <<"a=1&b">>},
+            {<<"POST">>, <<"urlencoded">>, <<"%zz">>},
+            {<<"POST">>, <<"match">>, <<"a=1">>},
+            {<<"POST">>, <<"match">>, <<"b=1">>},
+            {<<"GET">>, <<"events">>, <<>>},
+            {<<"HEAD">>, <<"events">>, <<>>}
+        ],
+        [?assertEqual(
+            request(Port, Method, <<"/cowboy/", Action/binary>>, Body),
+            request(Port, Method, <<"/ours/", Action/binary>>, Body))
+         || {Method, Action, Body} <- Cases]
+    after
+        ok = cowmachine_server_cowboy:stop_listener(cowboy_equivalence)
+    end.
 
 %% With `tls', the listener serves HTTPS.
 tls_test() ->
@@ -131,11 +162,54 @@ tls_test() ->
         ok = cowmachine_server_cowboy:stop_listener(cowboy_tls)
     end.
 
-%% The middleware: reply with the environment's body, with the metrics' user
-%% data set first.
+%% The middleware. For `cowboy_equivalence_test', it does what the path names
+%% with `cowboy_req' or `cowmachine_cowreq'; otherwise it replies with the
+%% environment's body, with the metrics' user data set first.
+execute(#{ path := Path } = Req, #{ equivalence := true }) ->
+    [<<>>, Which, Action] = binary:split(Path, <<"/">>, [global]),
+    Module = case Which of
+        <<"cowboy">> -> cowboy_req;
+        <<"ours">> -> cowmachine_cowreq
+    end,
+    {stop, equivalence(Module, Action, Req)};
 execute(Req, #{ body := Body }) ->
     ok = cowmachine_cowreq:set_options(#{ metrics_user_data => #{ site => test } }, Req),
     {stop, cowmachine_cowreq:reply(200, #{}, Body, Req)}.
+
+equivalence(Module, <<"events">>, Req0) ->
+    Req = cowboy_req:stream_reply(200, #{ <<"content-type">> => <<"text/event-stream">> }, Req0),
+    ok = Module:stream_events(#{ data => <<"one">> }, nofin, Req),
+    ok = Module:stream_events([#{ data => <<"two">> }], fin, Req),
+    Req;
+equivalence(Module, Action, Req) ->
+    try read(Module, Action, Req) of
+        {ok, Result, Req1} ->
+            cowboy_req:reply(200, #{}, io_lib:format("~0p", [Result]), Req1)
+    catch
+        exit:{request_error, Reason, _Message} ->
+            cowboy_req:reply(400, #{}, io_lib:format("~0p", [Reason]), Req)
+    end.
+
+read(Module, <<"urlencoded">>, Req) -> Module:read_urlencoded_body(Req);
+read(Module, <<"match">>, Req) -> Module:read_and_match_urlencoded_body([a], Req).
+
+%% Send a request and read the whole response, without its `date' header.
+request(Port, Method, Path, Body) ->
+    {ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, Port, [binary, {active, false}], 5000),
+    ok = gen_tcp:send(Socket, [
+        Method, <<" ">>, Path, <<" HTTP/1.1\r\nhost: localhost\r\nconnection: close\r\n">>,
+        <<"content-type: application/x-www-form-urlencoded\r\n">>,
+        <<"content-length: ">>, integer_to_binary(byte_size(Body)), <<"\r\n\r\n">>, Body
+    ]),
+    Response = recv_all(gen_tcp, Socket, <<>>),
+    ok = gen_tcp:close(Socket),
+    re:replace(Response, <<"(?i)\r\ndate: [^\r]*">>, <<>>, [{return, binary}]).
+
+wait_for_connections(Ref, N) ->
+    case cowmachine_server_cowboy:info(Ref) of
+        {ok, #{ active_connections := N, all_connections := N }} -> ok;
+        {ok, _} -> wait_for_connections(Ref, N)
+    end.
 
 rsa() ->
     [{key, {rsa, 2048, 65537}}].

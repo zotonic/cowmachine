@@ -5,7 +5,8 @@
 %% A listener runs its `middlewares' as Cowboy middlewares, and the request
 %% callbacks are Cowboy's own `cowboy_req' functions. The listener's `options'
 %% are Cowboy's protocol options, which win over those built from the shared
-%% keys: set `stream_handlers' there, for example. With a `metrics_callback',
+%% keys: set `stream_handlers' there, for example, but not `middlewares',
+%% `env', `request_timeout' or the metrics. With a `metrics_callback',
 %% `cowboy_metrics_h' runs before `cowboy_stream_h'.
 %% @end
 
@@ -66,24 +67,29 @@ port(Ref) ->
     ranch:get_port(Ref).
 
 %% @private
+%% Only Ranch functions that Ranch 1 and Ranch 2 both have, as an application
+%% can lock either (Zotonic runs Ranch 1).
 -spec info(cowmachine_server:listener_ref()) ->
     {ok, cowmachine_server:listener_info()} | {error, not_found}.
 info(Ref) ->
-    try ranch:info(Ref) of
-        Info -> {ok, listener_info(Info)}
+    try ranch:get_status(Ref) of
+        Status ->
+            Connections = length(ranch:procs(Ref, connections)),
+            Info = #{
+                status => Status,
+                port => ranch:get_port(Ref),
+                active_connections => Connections,
+                all_connections => Connections,
+                max_connections => ranch:get_max_connections(Ref)
+            },
+            {ok, with_ip(ranch:get_addr(Ref), Info)}
     catch
         %% Ranch raises badarg for a listener it doesn't know.
         error:badarg -> {error, not_found}
     end.
 
-%% Ranch 1 reports a proplist and Ranch 2 a map, with the same keys. Dialyzer
-%% sees the Ranch cowmachine builds with, so it would flag the clause for the
-%% other one, which an application can lock (Zotonic runs Ranch 1).
--dialyzer({no_match, listener_info/1}).
-listener_info(Info) when is_list(Info) ->
-    listener_info(maps:from_list(Info));
-listener_info(Info) ->
-    maps:with([status, ip, port, active_connections, all_connections, max_connections], Info).
+with_ip({IP, _Port}, Info) when is_tuple(IP) -> Info#{ ip => IP };
+with_ip(_Addr, Info) -> Info.
 
 %% Ranch's options: the listener's socket options, and its connection limits.
 transport_opts(TlsOpts, #{ port := Port } = Opts) ->
