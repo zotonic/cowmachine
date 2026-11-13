@@ -122,6 +122,7 @@
     start_listener/2,
     stop_listener/1,
     port/1,
+    info/1,
 
     execute/3,
 
@@ -130,7 +131,8 @@
 
 -export_type([
     listener_ref/0,
-    listener_opts/0
+    listener_opts/0,
+    listener_info/0
 ]).
 
 -type listener_ref() :: ranch:ref().
@@ -154,6 +156,19 @@
 }.
 %% A listener's options, described in the module documentation.
 
+-type listener_info() :: #{
+    status := running | suspended,
+    ip => inet:ip_address(),
+    port := inet:port_number(),
+    active_connections := non_neg_integer(),
+    all_connections := non_neg_integer(),
+    max_connections := non_neg_integer() | infinity
+}.
+%% What `info/1' reports about a listener: whether it accepts connections
+%% (`running') or not (`suspended', such as while it drains), the address it
+%% is bound to when the server knows it, its port, the connections it serves
+%% and its limit.
+
 %% Listeners
 
 -callback start_listener(Ref :: listener_ref(), Opts :: listener_opts()) ->
@@ -162,6 +177,8 @@
 -callback stop_listener(Ref :: listener_ref()) -> ok | {error, not_found}.
 
 -callback port(Ref :: listener_ref()) -> inet:port_number().
+
+-callback info(Ref :: listener_ref()) -> {ok, listener_info()} | {error, not_found}.
 
 %% Requests
 
@@ -221,6 +238,13 @@ stop_listener(Ref) ->
 -spec port(listener_ref()) -> inet:port_number().
 port(Ref) ->
     (module()):port(Ref).
+
+%% @doc What the listener named `Ref' on the configured server (`module/0')
+%% reports about itself, or `{error, not_found}' when there is no such
+%% listener.
+-spec info(listener_ref()) -> {ok, listener_info()} | {error, not_found}.
+info(Ref) ->
+    (module()):info(Ref).
 
 %% @doc Run a request through `Middlewares', each a `cowboy_middleware', in
 %% order, until one stops or the last returns. A server without middlewares of

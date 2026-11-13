@@ -22,7 +22,8 @@ module_test() ->
         ?assertEqual({error, {not_a_listener, fake}},
                      cowmachine_server:start_listener(fake, #{ port => 0, middlewares => [] })),
         ?assertEqual({error, not_found}, cowmachine_server:stop_listener(fake)),
-        ?assertEqual(1234, cowmachine_server:port(fake))
+        ?assertEqual(1234, cowmachine_server:port(fake)),
+        ?assertEqual({error, not_found}, cowmachine_server:info(fake))
     after
         application:unset_env(cowmachine, server)
     end.

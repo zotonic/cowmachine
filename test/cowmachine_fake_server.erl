@@ -12,6 +12,7 @@
     start_listener/2,
     stop_listener/1,
     port/1,
+    info/1,
     reply/4,
     inform/3,
     stream_reply/3,
@@ -29,6 +30,8 @@ start_listener(Ref, _Opts) -> {error, {not_a_listener, Ref}}.
 stop_listener(_Ref) -> {error, not_found}.
 
 port(_Ref) -> 1234.
+
+info(_Ref) -> {error, not_found}.
 
 reply(Status, Headers, Body, Req) ->
     record({reply, Status, Headers, iolist_to_binary(Body)}, Req),

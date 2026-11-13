@@ -86,6 +86,30 @@ options_win_test() ->
         ok = cowmachine_server_cowboy:stop_listener(cowboy_options)
     end.
 
+%% A listener reports its state, its address and its connections.
+info_test() ->
+    {ok, _} = application:ensure_all_started(cowmachine),
+    {ok, _} = cowmachine_server_cowboy:start_listener(cowboy_info, #{
+        port => 0,
+        ip => {127, 0, 0, 1},
+        max_connections => 10,
+        middlewares => [?MODULE]
+    }),
+    try
+        Port = cowmachine_server_cowboy:port(cowboy_info),
+        ?assertEqual({ok, #{
+            status => running,
+            ip => {127, 0, 0, 1},
+            port => Port,
+            active_connections => 0,
+            all_connections => 0,
+            max_connections => 10
+        }}, cowmachine_server_cowboy:info(cowboy_info))
+    after
+        ok = cowmachine_server_cowboy:stop_listener(cowboy_info)
+    end,
+    ?assertEqual({error, not_found}, cowmachine_server_cowboy:info(cowboy_gone)).
+
 %% With `tls', the listener serves HTTPS.
 tls_test() ->
     {ok, _} = application:ensure_all_started(cowmachine),

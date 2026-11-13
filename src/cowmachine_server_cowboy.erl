@@ -31,6 +31,7 @@
     start_listener/2,
     stop_listener/1,
     port/1,
+    info/1,
 
     reply/4,
     inform/3,
@@ -63,6 +64,26 @@ stop_listener(Ref) ->
 -spec port(cowmachine_server:listener_ref()) -> inet:port_number().
 port(Ref) ->
     ranch:get_port(Ref).
+
+%% @private
+-spec info(cowmachine_server:listener_ref()) ->
+    {ok, cowmachine_server:listener_info()} | {error, not_found}.
+info(Ref) ->
+    try ranch:info(Ref) of
+        Info -> {ok, listener_info(Info)}
+    catch
+        %% Ranch raises badarg for a listener it doesn't know.
+        error:badarg -> {error, not_found}
+    end.
+
+%% Ranch 1 reports a proplist and Ranch 2 a map, with the same keys. Dialyzer
+%% sees the Ranch cowmachine builds with, so it would flag the clause for the
+%% other one, which an application can lock (Zotonic runs Ranch 1).
+-dialyzer({no_match, listener_info/1}).
+listener_info(Info) when is_list(Info) ->
+    listener_info(maps:from_list(Info));
+listener_info(Info) ->
+    maps:with([status, ip, port, active_connections, all_connections, max_connections], Info).
 
 %% Ranch's options: the listener's socket options, and its connection limits.
 transport_opts(TlsOpts, #{ port := Port } = Opts) ->
